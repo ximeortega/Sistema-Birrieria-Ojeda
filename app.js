@@ -431,13 +431,26 @@ function cloudSettingsPrompt() {
       <button class="btn btn-primary" onclick="guardarCloudConfig()">Guardar y conectar</button>
     </div>`);
 }
+/** Evita que se pegue por error la llave maestra, que no debe salir del servidor. */
+function esClaveSecreta(key) {
+  if (/^sb_secret_/i.test(key)) return true;
+  try {
+    const carga = key.split('.')[1];
+    if (!carga) return false;
+    const b64 = carga.replace(/-/g, '+').replace(/_/g, '/');
+    return /"role"\s*:\s*"service_role"/.test(atob(b64 + '==='.slice((b64.length + 3) % 4)));
+  } catch { return false; }
+}
+
 async function guardarCloudConfig() {
   const url = $('#cfgUrl').value.trim();
   const key = $('#cfgKey').value.trim();
-  if (!/^https:\/\/.+\.supabase\.co$/.test(url.replace(/\/+$/, ''))) {
+  if (!/^https:\/\/[^\s/]+\.[^\s/]+/.test(url)) {
     toast('La dirección debe verse como https://xxxx.supabase.co', 'err'); return;
   }
-  if (key.length < 40) { toast('Esa clave se ve incompleta', 'err'); return; }
+  // Sirven las dos formas: la clave anon de siempre (eyJ…) y la nueva publishable.
+  if (key.length < 20) { toast('Esa clave se ve incompleta', 'err'); return; }
+  if (esClaveSecreta(key)) { toast('Esa es la clave secreta. Usa la anon / publishable', 'err'); return; }
   saveCloudConfig(url, key);
   Cloud.client = null;
   closeModal();
