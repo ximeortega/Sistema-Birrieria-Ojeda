@@ -31,17 +31,37 @@ const Cloud = {
 };
 
 /* ---------- Configuración guardada en este dispositivo ------------------ */
+/**
+ * Deja solo la dirección del proyecto. En el panel de Supabase la URL aparece
+ * como .../rest/v1/, y si se pega así el cliente termina pidiendo
+ * /rest/v1/rest/v1/... y el servidor responde "Invalid path specified".
+ */
+function normalizaUrl(u) {
+  const t = String(u || '').trim();
+  if (!t) return '';
+  try { return new URL(t).origin; }
+  catch { return t.replace(/\/(rest|auth|realtime|storage)\/v1\/?$/i, '').replace(/\/+$/, ''); }
+}
+
 function cloudConfig() {
   if (Cloud.cfg) return Cloud.cfg;
   try { Cloud.cfg = JSON.parse(localStorage.getItem(CLOUD_CFG_KEY)) || null; } catch { Cloud.cfg = null; }
+  // Arregla en el momento una dirección que se haya guardado con el path de más.
+  if (Cloud.cfg && Cloud.cfg.url) {
+    const limpia = normalizaUrl(Cloud.cfg.url);
+    if (limpia !== Cloud.cfg.url) {
+      Cloud.cfg.url = limpia;
+      try { localStorage.setItem(CLOUD_CFG_KEY, JSON.stringify(Cloud.cfg)); } catch {}
+    }
+  }
   // Si este equipo no tiene una conexión propia, se usa la que viene en config.js.
   if (!Cloud.cfg && typeof window !== 'undefined' && window.BO_SUPABASE && window.BO_SUPABASE.url) {
-    Cloud.cfg = { url: window.BO_SUPABASE.url, key: window.BO_SUPABASE.key };
+    Cloud.cfg = { url: normalizaUrl(window.BO_SUPABASE.url), key: window.BO_SUPABASE.key };
   }
   return Cloud.cfg;
 }
 function saveCloudConfig(url, key) {
-  Cloud.cfg = { url: String(url || '').trim().replace(/\/+$/, ''), key: String(key || '').trim() };
+  Cloud.cfg = { url: normalizaUrl(url), key: String(key || '').trim() };
   localStorage.setItem(CLOUD_CFG_KEY, JSON.stringify(Cloud.cfg));
 }
 function clearCloudConfig() {
