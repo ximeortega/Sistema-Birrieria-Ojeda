@@ -2044,9 +2044,9 @@ function saveSettings() {
 /** Refleja el nombre y el logo del negocio en la barra lateral y el login. */
 function applyBranding() {
   const n = bizName();
-  const side = $('#sideBrandName'), log = $('#brandName');
+  const side = $('#sideBrandName');
   if (side) side.textContent = n;
-  if (log) log.textContent = n;
+  $$('.brand-panel h1').forEach((h) => { h.textContent = n; });
   document.title = n + ' · Sistema';
 
   // Si se subió un logo desde Ajustes, manda ese; si no, el archivo de la carpeta.
