@@ -34,6 +34,10 @@ const Cloud = {
 function cloudConfig() {
   if (Cloud.cfg) return Cloud.cfg;
   try { Cloud.cfg = JSON.parse(localStorage.getItem(CLOUD_CFG_KEY)) || null; } catch { Cloud.cfg = null; }
+  // Si este equipo no tiene una conexión propia, se usa la que viene en config.js.
+  if (!Cloud.cfg && typeof window !== 'undefined' && window.BO_SUPABASE && window.BO_SUPABASE.url) {
+    Cloud.cfg = { url: window.BO_SUPABASE.url, key: window.BO_SUPABASE.key };
+  }
   return Cloud.cfg;
 }
 function saveCloudConfig(url, key) {
