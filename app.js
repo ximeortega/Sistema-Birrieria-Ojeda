@@ -171,9 +171,9 @@ const ALL_PAGES = [
 /** Reparto de fábrica; se puede cambiar perfil por perfil desde Ajustes. */
 const DEFAULT_NAV = {
   admin:  ['home', 'orders', 'kitchen', 'cashier', 'expenses', 'cut', 'products', 'admin'],
-  mesera: ['home', 'orders', 'kitchen'],
-  cocina: ['home', 'orders', 'kitchen'],
-  caja:   ['home', 'orders', 'cashier', 'expenses', 'cut'],
+  mesera: ['orders', 'kitchen'],
+  cocina: ['kitchen', 'orders'],
+  caja:   ['orders', 'cashier', 'expenses', 'cut'],
 };
 
 /** Ids de las pestañas de un perfil (las guardadas o las de fábrica). */
@@ -184,7 +184,8 @@ function navIds(role) {
   const limpio = (ids || []).filter((id) => ALL_PAGES.some((p) => p[0] === id));
   // El administrador nunca se queda sin Ajustes: si no, no habría cómo volver a entrar.
   if (role === 'admin' && !limpio.includes('admin')) limpio.push('admin');
-  return limpio.length ? limpio : (DEFAULT_NAV[role] ? ['home'] : []);
+  // Nadie puede quedarse sin ninguna pestaña.
+  return limpio.length ? limpio : (DEFAULT_NAV[role] || []);
 }
 /** Pestañas de un perfil como tuplas [id, icono, etiqueta]. */
 const navOf = (role) => ALL_PAGES.filter((p) => navIds(role).includes(p[0]));
@@ -1791,14 +1792,30 @@ function deleteProduct(id) {
 /* =========================================================================
    8 · ADMINISTRACIÓN — perfiles, negocio y datos
    ========================================================================= */
+let adminTab = 'negocio';   // negocio | reportes
+
 function renderAdmin() {
+  $('#pageContent').innerHTML = `
+    <div class="subtabs">
+      <button class="${adminTab === 'negocio' ? 'on' : ''}" onclick="setAdminTab('negocio')">
+        ${icon('cog', 16)} Administración</button>
+      <button class="${adminTab === 'reportes' ? 'on' : ''}" onclick="setAdminTab('reportes')">
+        ${icon('download', 16)} Reportes y respaldo</button>
+    </div>
+    <div id="adminBody"></div>`;
+  if (adminTab === 'negocio') renderAdminNegocio();
+  else renderAdminReportes();
+}
+function setAdminTab(t) { adminTab = t; renderAdmin(); }
+
+function renderAdminNegocio() {
   const users = getUsers();
   const tables = getTables().length - 1;
   const st = dayStats();
   const totalOrders = allOrders().length;
 
-  $('#pageContent').innerHTML = `
-    <div class="card" style="margin-top:0">
+  $('#adminBody').innerHTML = `
+    <div class="card" style="margin-top:16px">
       <div class="card-head">
         <div><div class="card-title">Perfiles y accesos</div>
           <div class="card-sub">Cada perfil entra con su PIN de 4 dígitos. Solo tú ves esta pantalla.</div></div>
@@ -1858,7 +1875,7 @@ function renderAdmin() {
       </div>
     </div>
 
-    <div class="grid grid-2" style="margin-top:16px">
+    <div class="grid" style="margin-top:16px">
       <div class="card">
         <div class="card-head"><div><div class="card-title">Datos del negocio</div>
           <div class="card-sub">Se aplican en todo el sistema.</div></div>${icon('shield', 20, 'muted')}</div>
@@ -1876,51 +1893,6 @@ function renderAdmin() {
         <button class="btn btn-primary full" style="margin-top:14px" onclick="saveSettings()">
           ${icon('check', 16)} Guardar cambios</button>
       </div>
-
-      <div class="card">
-        <div class="card-head"><div><div class="card-title">Respaldo de información</div>
-          <div class="card-sub">Los datos viven en este navegador: respalda seguido.</div></div>${icon('box', 20, 'muted')}</div>
-        <div class="kv"><span>Comandas guardadas</span><b>${totalOrders}</b></div>
-        <div class="kv"><span>Gastos registrados</span><b>${DB.get('expenses', []).length}</b></div>
-        <div class="kv"><span>Cortes guardados</span><b>${DB.get('cuts', []).length}</b></div>
-        <div class="kv"><span>Productos en el menú</span><b>${DB.get('products', []).length}</b></div>
-        <div class="actions" style="margin-top:16px">
-          <button class="btn btn-primary" onclick="exportBackup()">${icon('download', 16)} Descargar respaldo</button>
-          <label class="btn btn-line" style="cursor:pointer">
-            ${icon('upload', 16)} Restaurar
-            <input type="file" accept="application/json,.json" class="hidden" onchange="importBackup(this)">
-          </label>
-        </div>
-        <div class="divider"></div>
-        <button class="btn btn-line full" onclick="go('products')">${icon('tag', 16)} Ir al menú y precios</button>
-      </div>
-    </div>
-
-    <div class="card" style="margin-top:16px">
-      <div class="card-head">
-        <div><div class="card-title">Reportes para Excel</div>
-          <div class="card-sub">Se descargan como archivo <b>.csv</b>: se abre con doble clic en Excel.</div></div>
-        ${icon('download', 20, 'muted')}
-      </div>
-      <div class="field" style="max-width:320px;margin-bottom:14px">
-        <label>Periodo</label>
-        <select id="repRange">
-          <option value="hoy">Hoy</option>
-          <option value="ayer">Ayer</option>
-          <option value="semana">Últimos 7 días</option>
-          <option value="mes" selected>Este mes</option>
-          <option value="mesant">Mes anterior</option>
-          <option value="todo">Todo el histórico</option>
-        </select>
-      </div>
-      <div class="report-grid">
-        <button class="btn btn-line" onclick="exportResumen()">${icon('chart', 16)} Resumen por día</button>
-        <button class="btn btn-line" onclick="exportVentas()">${icon('receipt', 16)} Ventas por comanda</button>
-        <button class="btn btn-line" onclick="exportProductos()">${icon('box', 16)} Productos vendidos</button>
-        <button class="btn btn-line" onclick="exportGastos()">${icon('minus', 16)} Gastos</button>
-        <button class="btn btn-line" onclick="exportCortes()">${icon('wallet', 16)} Cortes guardados</button>
-      </div>
-    </div>
 
     <div class="card danger-zone" style="margin-top:16px">
       <div class="card-head"><div><div class="card-title">Zona de riesgo</div>
@@ -1992,6 +1964,65 @@ async function desconectarNube() {
   renderAdmin();
 }
 
+/** Sub-pestaña de descargas: reportes de Excel y respaldo completo. */
+function renderAdminReportes() {
+  $('#adminBody').innerHTML = `
+    <div class="card" style="margin-top:16px">
+      <div class="card-head">
+        <div><div class="card-title">Reportes para Excel</div>
+          <div class="card-sub">Se descargan como archivo <b>.csv</b>: se abren con doble clic en Excel.</div></div>
+        ${icon('download', 20, 'muted')}
+      </div>
+
+      <div class="field" style="max-width:320px;margin-bottom:14px">
+        <label>¿De qué periodo?</label>
+        <select id="repRange">
+          <option value="hoy">Hoy</option>
+          <option value="ayer">Ayer</option>
+          <option value="semana">Últimos 7 días</option>
+          <option value="mes" selected>Este mes</option>
+          <option value="mesant">Mes anterior</option>
+          <option value="todo">Todo el histórico</option>
+        </select>
+      </div>
+
+      <div class="report-grid">
+        <button class="btn btn-line" onclick="exportResumen()">${icon('chart', 16)} Resumen por día</button>
+        <button class="btn btn-line" onclick="exportVentas()">${icon('receipt', 16)} Ventas por comanda</button>
+        <button class="btn btn-line" onclick="exportProductos()">${icon('box', 16)} Productos vendidos</button>
+        <button class="btn btn-line" onclick="exportGastos()">${icon('minus', 16)} Gastos</button>
+        <button class="btn btn-line" onclick="exportCortes()">${icon('wallet', 16)} Cortes guardados</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="card-head">
+        <div><div class="card-title">Respaldo completo</div>
+          <div class="card-sub">Toda la información en un archivo, para guardarla o pasarla a otro equipo.</div></div>
+        ${icon('box', 20, 'muted')}
+      </div>
+
+      <div class="grid grid-2" style="gap:0 24px">
+        <div>
+          <div class="kv"><span>Comandas guardadas</span><b>${allOrders().length}</b></div>
+          <div class="kv"><span>Gastos registrados</span><b>${DB.get('expenses', []).length}</b></div>
+        </div>
+        <div>
+          <div class="kv"><span>Cortes guardados</span><b>${DB.get('cuts', []).length}</b></div>
+          <div class="kv"><span>Productos en el menú</span><b>${DB.get('products', []).length}</b></div>
+        </div>
+      </div>
+
+      <div class="actions" style="margin-top:16px">
+        <button class="btn btn-primary" onclick="exportBackup()">${icon('download', 16)} Descargar respaldo</button>
+        <label class="btn btn-line" style="cursor:pointer">
+          ${icon('upload', 16)} Restaurar desde archivo
+          <input type="file" accept="application/json,.json" class="hidden" onchange="importBackup(this)">
+        </label>
+      </div>
+    </div>`;
+}
+
 function togglePin(id, pin) {
   const el = $('#pin-' + id), btn = $('#pinbtn-' + id);
   const oculto = el.textContent === '••••';
@@ -2016,7 +2047,7 @@ function editProfile(id) {
         <div class="tab-picker" id="prPages">
           ${ALL_PAGES.map(([pid, ic, label]) => {
             const on = activas.includes(pid);
-            const fijo = (pid === 'home') || (id === 'admin' && pid === 'admin');
+            const fijo = (id === 'admin' && pid === 'admin');
             return `<button class="tab-opt ${on ? 'on' : ''} ${fijo ? 'fixed' : ''}" data-page="${pid}"
                       ${fijo ? 'disabled' : `onclick="this.classList.toggle('on')"`}>
                       ${icon(ic, 17)}<span>${label}</span>
@@ -2025,7 +2056,9 @@ function editProfile(id) {
           }).join('')}
         </div>
         <p class="muted" style="font-size:12px;margin-top:9px">
-          Inicio siempre está disponible${id === 'admin' ? ', y el administrador conserva Ajustes para no quedarse fuera' : ''}.
+          ${id === 'admin'
+            ? 'El administrador conserva Ajustes para no quedarse fuera de la configuración.'
+            : 'Deja marcada al menos una pestaña. Inicio muestra las ventas del día, así que normalmente se deja solo al administrador.'}
         </p>
       </div>
 
@@ -2046,12 +2079,12 @@ function saveProfile(id) {
   const otros = Object.entries(getUsers()).filter(([k]) => k !== id);
   if (otros.some(([, u]) => u.pin === pin)) { toast('Ese PIN ya lo usa otro perfil', 'err'); return; }
 
-  // Inicio va siempre; el administrador conserva Ajustes.
-  const pages = ['home'];
+  const pages = [];
   $$('#prPages .tab-opt').forEach((b) => {
-    if (b.dataset.page !== 'home' && b.classList.contains('on')) pages.push(b.dataset.page);
+    if (b.classList.contains('on')) pages.push(b.dataset.page);
   });
   if (id === 'admin' && !pages.includes('admin')) pages.push('admin');
+  if (!pages.length) { toast('Deja marcada al menos una pestaña', 'err'); return; }
 
   const saved = DB.get('users', {}) || {};
   saved[id] = { ...(saved[id] || {}), label, pin, pages };
@@ -2369,6 +2402,7 @@ async function arrancar() {
   // Se pinta el login de una vez con lo que hay en el equipo: esperar a la nube
   // dejaba la pantalla a medias unos segundos.
   sembrarDefaults();
+  migrarInicio();
   applyBranding();
   mostrarLogin();
 
@@ -2377,9 +2411,30 @@ async function arrancar() {
 
   // Ya con la nube puede haber otro nombre, otro logo u otros perfiles.
   sembrarDefaults();
+  migrarInicio();
   applyBranding();
   actualizarEstadoNube();
   if (!session) mostrarLogin();   // si aún no entra nadie, se refresca el login
+}
+
+/**
+ * Los perfiles guardados con la versión anterior traían Inicio a fuerza.
+ * Se les quita una sola vez; después el administrador decide libremente.
+ */
+function migrarInicio() {
+  if (DB.get('navMigrado', false)) return;
+  const guardados = DB.get('users', {}) || {};
+  let cambio = false;
+  Object.keys(guardados).forEach((rol) => {
+    if (rol === 'admin' || !Array.isArray(guardados[rol].pages)) return;
+    const sinInicio = guardados[rol].pages.filter((x) => x !== 'home');
+    if (sinInicio.length !== guardados[rol].pages.length) {
+      guardados[rol].pages = sinInicio.length ? sinInicio : DEFAULT_NAV[rol];
+      cambio = true;
+    }
+  });
+  if (cambio) DB.set('users', guardados);
+  DB.set('navMigrado', true);
 }
 
 /** Datos de fábrica, solo si no hay nada guardado ni en la nube ni aquí. */
