@@ -2345,16 +2345,20 @@ function mostrarAccesoNegocio() {
 }
 
 async function arrancar() {
+  // Se pinta el login de una vez con lo que hay en el equipo: esperar a la nube
+  // dejaba la pantalla a medias unos segundos.
+  sembrarDefaults();
   applyBranding();
-  let estado = 'local';
-  try { estado = await cloudInit(); }
+  mostrarLogin();
+
+  try { await cloudInit(); }
   catch (e) { Cloud.error = e.message; }
 
-  // Con la nube ya cargada puede haber otro nombre, otro logo u otros perfiles.
+  // Ya con la nube puede haber otro nombre, otro logo u otros perfiles.
   sembrarDefaults();
   applyBranding();
   actualizarEstadoNube();
-  mostrarLogin();
+  if (!session) mostrarLogin();   // si aún no entra nadie, se refresca el login
 }
 
 /** Datos de fábrica, solo si no hay nada guardado ni en la nube ni aquí. */
