@@ -1958,7 +1958,8 @@ function cloudCardBody() {
     <div class="actions" style="margin-top:14px">
       <button class="btn btn-line" onclick="cloudSettingsPrompt()">${icon('edit', 15)} Cambiar conexión</button>
       ${Cloud.online
-        ? `<button class="btn btn-line" onclick="sincronizarAhora()">${icon('download', 15)} Actualizar ahora</button>
+        ? `<button class="btn btn-line" onclick="sincronizarAhora()">${icon('download', 15)} Traer de la nube</button>
+           <button class="btn btn-line" onclick="subirTodo()">${icon('upload', 15)} Subir todo a la nube</button>
            <button class="btn btn-danger" onclick="desconectarNube()">Desconectar este equipo</button>`
         : `<button class="btn btn-primary" onclick="mostrarAccesoNegocio()">Entrar al negocio</button>`}
     </div>`;
@@ -1971,6 +1972,17 @@ async function sincronizarAhora() {
   toast(Cloud.error ? Cloud.error : 'Información al día', Cloud.error ? 'err' : 'ok');
   renderAdmin();
 }
+/** Manda a la nube todo lo que tenga este equipo: menú, comandas, gastos y cortes. */
+async function subirTodo() {
+  const n = DB.get('products', []).length;
+  if (!confirm(`Se van a subir los ${n} productos del menú y toda la información de este equipo. ¿Continuar?`)) return;
+  toast('Subiendo…');
+  await cloudPushAll();
+  actualizarEstadoNube();
+  toast(Cloud.error ? Cloud.error : 'Todo subido a la nube', Cloud.error ? 'err' : 'ok');
+  renderAdmin();
+}
+
 async function desconectarNube() {
   if (!confirm('Este equipo dejará de compartir información con los demás. La información que ya tiene se queda guardada aquí. ¿Continuar?')) return;
   await cloudSignOut();
@@ -2372,7 +2384,9 @@ async function arrancar() {
 
 /** Datos de fábrica, solo si no hay nada guardado ni en la nube ni aquí. */
 function sembrarDefaults() {
-  if (!DB.get('products', null)) DB.set('products', DEFAULT_PRODUCTS);
+  // Sin productos no hay con qué levantar comandas. Si la nube todavía no tenía
+  // menú, se siembra el de fábrica y de paso se sube.
+  if (!DB.get('products', []).length) DB.set('products', DEFAULT_PRODUCTS);
   if (!DB.get('orders', null)) DB.set('orders', []);
   if (!DB.get('expenses', null)) DB.set('expenses', []);
   if (!DB.get('cuts', null)) DB.set('cuts', []);
