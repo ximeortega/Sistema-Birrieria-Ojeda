@@ -58,6 +58,23 @@
     </div>
   </section>
 
+  <!-- ============ ACCESO DEL NEGOCIO (nube) ============ -->
+  <section id="cloudView" class="login-view hidden">
+    <div class="login-shell single">
+      <div class="login-card">
+        <img class="brand-logo mid" src="logo.png" alt="Birriería Ojeda" data-i="0" onerror="logoFallback(this)" />
+        <div>
+          <p class="eyebrow red">Acceso del negocio</p>
+          <h2 id="cloudTitle">Entra una sola vez</h2>
+          <p class="muted" style="font-size:13.5px;margin-top:6px">
+            Este dispositivo queda ligado a tu taquería. Después ya solo se usan los PIN.
+          </p>
+        </div>
+        <div id="cloudForm"></div>
+      </div>
+    </div>
+  </section>
+
   <!-- ================= APP ================= -->
   <section id="appView" class="app-view hidden">
     <aside class="sidebar">
@@ -98,6 +115,10 @@
 
   <div id="sheetRoot"></div>
   <div id="modalRoot"></div>
+
+  <!-- Cliente de Supabase. Si no carga (sin internet) el sistema sigue en modo local. -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="cloud.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

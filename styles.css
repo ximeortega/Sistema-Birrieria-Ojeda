@@ -735,6 +735,26 @@ small{font-size:12px}
 .report-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:9px}
 .report-grid .btn{justify-content:flex-start;padding:13px 15px}
 
+/* Acceso del negocio y estado de la nube */
+.login-shell.single{grid-template-columns:1fr;max-width:460px}
+.login-shell.single .login-card{gap:16px;padding:38px 34px}
+.brand-logo.mid{width:96px;margin:0 auto 4px;filter:drop-shadow(0 6px 16px rgba(20,2,4,.25))}
+.cloud-msg{
+  padding:11px 13px;border-radius:var(--r-sm);font-size:13px;font-weight:650;margin-bottom:12px;
+}
+.cloud-msg.err{background:var(--brand-soft);color:var(--brand-ink);border:1px solid var(--brand-line)}
+.cloud-msg.ok{background:var(--green-soft);color:var(--green);border:1px solid var(--green-line)}
+.cloud-state{
+  padding:13px 15px;border-radius:var(--r);display:grid;gap:3px;
+  border:1px solid var(--line);background:#fafafc;
+}
+.cloud-state b{font-size:14px}
+.cloud-state span{font-size:12.5px;color:var(--muted)}
+.cloud-state.on{background:var(--green-soft);border-color:var(--green-line)}
+.cloud-state.on b{color:var(--green)}
+.cloud-state.off{background:var(--amber-soft);border-color:var(--amber-line)}
+.cloud-state.off b{color:var(--amber)}
+
 .logo-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
 .logo-preview{
   width:96px;height:96px;border-radius:50%;flex:none;overflow:hidden;

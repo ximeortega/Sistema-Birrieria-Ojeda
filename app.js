@@ -103,20 +103,36 @@ const PAY_METHODS = [
 ];
 
 /* ---------- Persistencia ---------------------------------------------- */
-const DB = {
-  get(key, fallback) { try { return JSON.parse(localStorage.getItem('bo_' + key)) ?? fallback; } catch { return fallback; } },
-  set(key, val) { localStorage.setItem('bo_' + key, JSON.stringify(val)); },
-};
-if (!DB.get('products', null))          DB.set('products', DEFAULT_PRODUCTS);
-if (!DB.get('orders', null))            DB.set('orders', []);
-if (!DB.get('expenses', null))          DB.set('expenses', []);
-if (!DB.get('cuts', null))              DB.set('cuts', []);
-if (DB.get('initialFund', null) === null) DB.set('initialFund', 0);
-// El fondo de caja es de cada día. `defaultFund` es con cuánto sueles abrir;
-// `funds[fecha]` guarda lo que realmente se dejó ese día.
-if (DB.get('defaultFund', null) === null) DB.set('defaultFund', Number(DB.get('initialFund', 0)) || 0);
-if (!DB.get('funds', null)) DB.set('funds', {});
+/**
+ * Toda la información vive en memoria (STATE) para que las pantallas se dibujen
+ * al instante. Cada cambio se guarda en este dispositivo y, si hay nube
+ * configurada, se replica en Supabase fila por fila.
+ */
+const STATE = {};
+const stateGet = (key) => STATE[key];
+const stateSet = (key, val) => { STATE[key] = val; try { localStorage.setItem('bo_' + key, JSON.stringify(val)); } catch {} };
 
+const DB = {
+  get(key, fallback) {
+    if (!(key in STATE)) {
+      try { STATE[key] = JSON.parse(localStorage.getItem('bo_' + key)); } catch { STATE[key] = null; }
+    }
+    const v = STATE[key];
+    return v === undefined || v === null ? fallback : v;
+  },
+  set(key, val) {
+    const antes = STATE[key];
+    stateSet(key, val);
+    if (typeof Cloud === 'undefined' || !Cloud.online) return;
+    if (key in TABLE_KEYS) cloudSyncArray(key, antes || [], val || []);
+    else if (SETTING_KEYS.indexOf(key) >= 0) cloudSyncSettings();
+  },
+  remove(key) {
+    delete STATE[key];
+    try { localStorage.removeItem('bo_' + key); } catch {}
+    if (typeof Cloud !== 'undefined' && Cloud.online && SETTING_KEYS.indexOf(key) >= 0) cloudSyncSettings();
+  },
+};
 /** Fondo de caja de un día concreto (si no se capturó, el predeterminado). */
 function getFund(k = todayKey()) {
   const m = DB.get('funds', {}) || {};
@@ -307,8 +323,8 @@ function tryLogin() {
 function logout() {
   session = null; closeModal(); closeSheet();
   $('#appView').classList.add('hidden');
-  $('#loginView').classList.remove('hidden');
   renderLogin();
+  $('#loginView').classList.remove('hidden');
 }
 
 document.addEventListener('keydown', (e) => {
@@ -321,6 +337,115 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'Backspace') pinClear();
   else if (e.key === 'Enter') tryLogin();
 });
+
+/* =========================================================================
+   Acceso del negocio (solo cuando hay nube configurada)
+   ========================================================================= */
+let cloudMode = 'entrar';   // entrar | crear
+
+function renderCloudLogin(aviso) {
+  $('#cloudTitle').textContent = cloudMode === 'entrar' ? 'Entra una sola vez' : 'Crea el acceso de tu negocio';
+  $('#cloudForm').innerHTML = `
+    <div class="field" style="margin-bottom:12px">
+      <label>Correo del negocio</label>
+      <input id="cloudEmail" type="email" inputmode="email" autocomplete="username" placeholder="birrieria@correo.com">
+    </div>
+    <div class="field" style="margin-bottom:14px">
+      <label>Contraseña</label>
+      <input id="cloudPass" type="password" autocomplete="current-password" placeholder="Mínimo 6 caracteres">
+    </div>
+    ${aviso ? `<div class="cloud-msg ${aviso.tipo}">${esc(aviso.texto)}</div>` : ''}
+    <button class="btn btn-primary btn-lg full" id="cloudGo" onclick="cloudSubmit()">
+      ${cloudMode === 'entrar' ? 'Entrar' : 'Crear acceso'}
+    </button>
+    <button class="linkbtn" style="margin-top:10px" onclick="toggleCloudMode()">
+      ${cloudMode === 'entrar' ? '¿Es la primera vez? Crea el acceso del negocio' : '¿Ya lo tienes? Entrar'}
+    </button>
+    <div class="divider"></div>
+    <button class="btn btn-line full btn-sm" onclick="cloudSettingsPrompt()">Cambiar la conexión de Supabase</button>
+    <button class="linkbtn" style="margin-top:8px" onclick="usarSoloLocal()">Trabajar solo en este equipo</button>`;
+
+  const pass = $('#cloudPass');
+  if (pass) pass.onkeydown = (e) => { if (e.key === 'Enter') cloudSubmit(); };
+}
+function toggleCloudMode() { cloudMode = cloudMode === 'entrar' ? 'crear' : 'entrar'; renderCloudLogin(); }
+
+async function cloudSubmit() {
+  const email = $('#cloudEmail').value.trim();
+  const pass = $('#cloudPass').value;
+  if (!email || !pass) { renderCloudLogin({ tipo:'err', texto:'Escribe el correo y la contraseña.' }); return; }
+
+  const btn = $('#cloudGo');
+  btn.disabled = true;
+  btn.textContent = cloudMode === 'entrar' ? 'Entrando…' : 'Creando…';
+
+  const r = cloudMode === 'entrar'
+    ? await cloudSignIn(email, pass)
+    : await cloudSignUp(email, pass);
+
+  if (r.error) { renderCloudLogin({ tipo:'err', texto:r.error }); return; }
+  if (r.pendiente) {
+    renderCloudLogin({ tipo:'ok', texto:'Revisa tu correo y confirma la cuenta; después entra con esos datos.' });
+    cloudMode = 'entrar';
+    return;
+  }
+
+  if (cloudMode === 'crear') {
+    // Negocio nuevo: se sube lo que ya había en este dispositivo.
+    await cloudPushAll();
+  } else {
+    await cloudPullAll();
+  }
+  cloudListen();
+  sembrarDefaults();
+  applyBranding();
+  actualizarEstadoNube();
+  mostrarLogin('listo');
+  toast('Dispositivo conectado', 'ok');
+}
+
+/** Deja de usar la nube en este equipo. */
+function usarSoloLocal() {
+  if (!confirm('Este dispositivo dejará de compartir información con los demás. ¿Continuar?')) return;
+  clearCloudConfig();
+  Cloud.online = false;
+  actualizarEstadoNube();
+  mostrarLogin('local');
+}
+
+/** Captura de la dirección y la clave del proyecto de Supabase. */
+function cloudSettingsPrompt() {
+  const cfg = cloudConfig() || { url:'', key:'' };
+  openModal(`${modalHead('Sincronización', 'Conectar con Supabase')}
+    <div class="modal-body">
+      <div class="field"><label>Project URL</label>
+        <input id="cfgUrl" placeholder="https://xxxxxxxx.supabase.co" value="${esc(cfg.url)}"></div>
+      <div class="field"><label>Clave anon (public)</label>
+        <textarea id="cfgKey" placeholder="eyJhbGciOi…" style="min-height:88px;font-size:12px">${esc(cfg.key)}</textarea></div>
+      <p class="muted" style="font-size:12.5px">
+        Los dos datos están en Supabase → <b>Settings → API</b>. Se guardan solo en este dispositivo.
+      </p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-line" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCloudConfig()">Guardar y conectar</button>
+    </div>`);
+}
+async function guardarCloudConfig() {
+  const url = $('#cfgUrl').value.trim();
+  const key = $('#cfgKey').value.trim();
+  if (!/^https:\/\/.+\.supabase\.co$/.test(url.replace(/\/+$/, ''))) {
+    toast('La dirección debe verse como https://xxxx.supabase.co', 'err'); return;
+  }
+  if (key.length < 40) { toast('Esa clave se ve incompleta', 'err'); return; }
+  saveCloudConfig(url, key);
+  Cloud.client = null;
+  closeModal();
+  const estado = await cloudInit();
+  actualizarEstadoNube();
+  if (estado === 'listo') { sembrarDefaults(); applyBranding(); toast('Conectado', 'ok'); refresh(); }
+  else { mostrarLogin('sin-sesion'); }
+}
 
 /* =========================================================================
    Shell: navegación y reloj
@@ -1659,6 +1784,15 @@ function renderAdmin() {
 
     <div class="card" style="margin-top:16px">
       <div class="card-head">
+        <div><div class="card-title">Sincronización entre dispositivos</div>
+          <div class="card-sub">Para que la mesera, la cocina y la caja vean las mismas comandas.</div></div>
+        ${icon('shield', 20, 'muted')}
+      </div>
+      ${cloudCardBody()}
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="card-head">
         <div><div class="card-title">Logo del negocio</div>
           <div class="card-sub">Sube tu imagen y se usa tal cual en el login, el menú lateral y la pestaña del navegador.</div></div>
         ${icon('star', 20, 'muted')}
@@ -1758,6 +1892,53 @@ function renderAdmin() {
         <button class="btn btn-danger" onclick="wipeAll()">Borrar toda la información</button>
       </div>
     </div>`;
+}
+
+/** Cuerpo de la tarjeta de sincronización, según cómo esté este dispositivo. */
+function cloudCardBody() {
+  const cfg = typeof cloudConfig === 'function' ? cloudConfig() : null;
+  const libre = typeof cloudLibReady === 'function' && cloudLibReady();
+
+  if (!cfg) {
+    return `<div class="cloud-state off">
+        <b>Este dispositivo trabaja solo</b>
+        <span>Las comandas que se levanten aquí no las ven los demás equipos.</span>
+      </div>
+      ${!libre ? `<div class="cloud-msg err">No se pudo cargar la librería de Supabase: revisa la conexión a internet.</div>` : ''}
+      <button class="btn btn-primary" style="margin-top:14px" onclick="cloudSettingsPrompt()">
+        ${icon('upload', 16)} Conectar con Supabase</button>`;
+  }
+
+  const correo = Cloud.session && Cloud.session.user ? Cloud.session.user.email : '';
+  return `<div class="cloud-state ${Cloud.online ? 'on' : 'off'}">
+      <b>${Cloud.online ? 'Conectado y sincronizando' : 'Configurado, pero sin sesión'}</b>
+      <span>${Cloud.online ? esc(correo) : 'Falta entrar con el correo del negocio.'}</span>
+    </div>
+    <div class="kv"><span>Proyecto</span><b style="font-size:12px;font-weight:700">${esc(cfg.url.replace('https://', ''))}</b></div>
+    ${Cloud.error ? `<div class="cloud-msg err" style="margin-top:10px">${esc(Cloud.error)}</div>` : ''}
+    <div class="actions" style="margin-top:14px">
+      <button class="btn btn-line" onclick="cloudSettingsPrompt()">${icon('edit', 15)} Cambiar conexión</button>
+      ${Cloud.online
+        ? `<button class="btn btn-line" onclick="sincronizarAhora()">${icon('download', 15)} Actualizar ahora</button>
+           <button class="btn btn-danger" onclick="desconectarNube()">Desconectar este equipo</button>`
+        : `<button class="btn btn-primary" onclick="mostrarLogin('sin-sesion')">Entrar al negocio</button>`}
+    </div>`;
+}
+
+async function sincronizarAhora() {
+  toast('Actualizando…');
+  await cloudPullAll();
+  actualizarEstadoNube();
+  toast(Cloud.error ? Cloud.error : 'Información al día', Cloud.error ? 'err' : 'ok');
+  renderAdmin();
+}
+async function desconectarNube() {
+  if (!confirm('Este equipo dejará de compartir información con los demás. La información que ya tiene se queda guardada aquí. ¿Continuar?')) return;
+  await cloudSignOut();
+  clearCloudConfig();
+  actualizarEstadoNube();
+  toast('Equipo desconectado');
+  renderAdmin();
 }
 
 function togglePin(id, pin) {
@@ -1905,7 +2086,7 @@ function saveLogo(dataUrl) {
 
 function removeLogo() {
   if (!confirm('¿Quitar el logo y volver al que trae el sistema?')) return;
-  localStorage.removeItem('bo_logo');
+  DB.remove('logo');
   // La cadena de archivos la define index.html; si no está, se cae al vectorial.
   const fuentes = (typeof LOGO_SOURCES !== 'undefined' && LOGO_SOURCES) || ['logo.png', 'logo.svg'];
   $$('.brand-logo').forEach((img) => {
@@ -2110,12 +2291,65 @@ function exportCortes() {
 // Este archivo se carga como script clásico: las funciones declaradas arriba y las
 // variables de nivel superior quedan disponibles para los onclick del HTML generado.
 $('#logoutBtn').onclick = logout;
-applyBranding();
-renderLogin();
+
+/** Cuando otro dispositivo cambia algo, se redibuja lo que se esté viendo. */
+function onCloudChange() {
+  if (!session) return;
+  if ($('#modalRoot').innerHTML || $('#sheetRoot').innerHTML) return;  // no interrumpir una captura
+  refresh();
+}
+
+/** Muestra la pantalla de PIN o la de acceso del negocio, según haga falta. */
+function mostrarLogin(estado) {
+  const cloudView = $('#cloudView'), loginView = $('#loginView');
+  if (estado === 'sin-sesion') {
+    cloudView.classList.remove('hidden');
+    loginView.classList.add('hidden');
+    renderCloudLogin();
+  } else {
+    cloudView.classList.add('hidden');
+    loginView.classList.remove('hidden');
+    renderLogin();
+  }
+}
+
+async function arrancar() {
+  applyBranding();
+  let estado = 'local';
+  try { estado = await cloudInit(); }
+  catch (e) { Cloud.error = e.message; }
+
+  // Con la nube ya cargada puede haber otro nombre, otro logo u otros perfiles.
+  sembrarDefaults();
+  applyBranding();
+  actualizarEstadoNube();
+  mostrarLogin(estado);
+}
+
+/** Datos de fábrica, solo si no hay nada guardado ni en la nube ni aquí. */
+function sembrarDefaults() {
+  if (!DB.get('products', null)) DB.set('products', DEFAULT_PRODUCTS);
+  if (!DB.get('orders', null)) DB.set('orders', []);
+  if (!DB.get('expenses', null)) DB.set('expenses', []);
+  if (!DB.get('cuts', null)) DB.set('cuts', []);
+  if (DB.get('defaultFund', null) === null) DB.set('defaultFund', 0);
+  if (!DB.get('funds', null)) DB.set('funds', {});
+}
+
+/** Aviso en la barra lateral: conectado, sin conexión o solo en este equipo. */
+function actualizarEstadoNube() {
+  const el = $('#userStatus');
+  if (!el) return;
+  if (typeof Cloud === 'undefined' || !cloudConfig()) { el.textContent = 'Solo en este equipo'; return; }
+  el.textContent = Cloud.online ? 'Sincronizado' : (Cloud.error ? 'Sin conexión' : 'Sesión activa');
+}
+
+arrancar();
 
 /* Vista rápida para revisión visual: index.html?demo=admin */
 const demoRole = new URLSearchParams(location.search).get('demo');
 if (demoRole && getUsers()[demoRole]) {
+  sembrarDefaults();
   session = { role: demoRole, label: getUsers()[demoRole].label };
   $('#loginView').classList.add('hidden');
   $('#appView').classList.remove('hidden');

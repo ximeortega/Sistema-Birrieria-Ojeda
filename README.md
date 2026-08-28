@@ -147,8 +147,25 @@ Los PIN se cambian desde **Ajustes → Perfiles y accesos**.
 
 No requiere instalar paquetes.
 
-## Importante para la versión productiva
-Este prototipo usa almacenamiento local del navegador: cada dispositivo tiene sus propios
-datos, así que la mesera y la cocina **no** verían las mismas comandas. Para operar con varios
-dispositivos a la vez, usuarios reales, seguridad y respaldo, el siguiente paso es conectar el
-frontend a una base de datos y autenticación (Supabase/PostgreSQL, Firebase o API propia).
+## Sincronización entre dispositivos (Supabase)
+Sin configurar, el sistema guarda todo en el navegador de cada equipo: la mesera y la cocina
+no verían las mismas comandas. Con Supabase conectado, **todos los dispositivos comparten la
+información en tiempo real**.
+
+### Cómo conectarlo
+1. Crea un proyecto gratis en [supabase.com](https://supabase.com) (New project).
+2. Abre **SQL Editor**, pega todo `supabase-schema.sql` y dale **Run**.
+3. En **Settings → API** copia la *Project URL* y la clave *anon public*.
+4. En el sistema entra a `Ajustes → Sincronización entre dispositivos → Conectar con Supabase`
+   y pega los dos datos.
+5. Se abre la pantalla de acceso del negocio: la primera vez usa
+   **Crea el acceso del negocio** con un correo y contraseña. En las demás tablets, **Entrar**
+   con esos mismos datos.
+
+### Cómo funciona
+- Cada comanda es **una fila**: la mesera puede levantar una mientras cocina marca otra lista,
+  sin que se pisen.
+- Solo se sube lo que cambió, no toda la información.
+- Se escucha en tiempo real: la comanda aparece en cocina en cuanto se manda.
+- Se conserva una copia local en cada equipo, así que si se cae el internet se sigue trabajando.
+- Los datos están protegidos: cada negocio solo ve lo suyo (RLS por usuario en Supabase).
