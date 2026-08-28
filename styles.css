@@ -736,6 +736,13 @@ small{font-size:12px}
 .report-grid .btn{justify-content:flex-start;padding:13px 15px}
 
 /* Acceso del negocio y estado de la nube */
+.cloud-warn{
+  display:flex;align-items:center;gap:11px;padding:12px 14px;border-radius:var(--r);
+  background:var(--amber-soft);border:1px solid var(--amber-line);color:var(--amber);
+}
+.cloud-warn b{display:block;font-size:13.5px}
+.cloud-warn span{display:block;font-size:12px;opacity:.85;margin-top:2px}
+.cloud-warn .btn{margin-left:auto;flex:none}
 .cloud-msg{
   padding:11px 13px;border-radius:var(--r-sm);font-size:13px;font-weight:650;margin-bottom:12px;
 }

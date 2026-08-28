@@ -288,7 +288,24 @@ function closeSheet() {
 /* =========================================================================
    Sesión / Login
    ========================================================================= */
+/** ¿Hay nube configurada pero sin sesión en este equipo? */
+function nubePendiente() {
+  return typeof Cloud !== 'undefined' && typeof cloudConfig === 'function'
+      && !!cloudConfig() && !Cloud.online;
+}
+
 function renderLogin() {
+  const aviso = $('#loginNotice');
+  if (aviso) {
+    aviso.innerHTML = nubePendiente()
+      ? `<div class="cloud-warn">
+           ${icon('alert', 17)}
+           <div><b>Este equipo no está sincronizado</b>
+             <span>Las comandas que levantes aquí no las verán los demás.</span></div>
+           <button class="btn btn-primary btn-sm" onclick="mostrarAccesoNegocio()">Conectar</button>
+         </div>`
+      : '';
+  }
   $('#roleGrid').innerHTML = Object.entries(getUsers()).map(([id, u]) => `
     <button class="role-card ${loginRole === id ? 'on' : ''}" onclick="pickRole('${id}')">
       <span class="role-ic">${icon(u.icon, 19)}</span>
@@ -363,7 +380,7 @@ function renderCloudLogin(aviso) {
     </button>
     <div class="divider"></div>
     <button class="btn btn-line full btn-sm" onclick="cloudSettingsPrompt()">Cambiar la conexión de Supabase</button>
-    <button class="linkbtn" style="margin-top:8px" onclick="usarSoloLocal()">Trabajar solo en este equipo</button>`;
+    <button class="linkbtn" style="margin-top:8px" onclick="mostrarLogin()">${icon('back', 14)} Volver a la pantalla de PIN</button>`;
 
   const pass = $('#cloudPass');
   if (pass) pass.onkeydown = (e) => { if (e.key === 'Enter') cloudSubmit(); };
@@ -400,8 +417,8 @@ async function cloudSubmit() {
   sembrarDefaults();
   applyBranding();
   actualizarEstadoNube();
-  mostrarLogin('listo');
-  toast('Dispositivo conectado', 'ok');
+  mostrarLogin();
+  toast('Equipo conectado · ya comparte las comandas', 'ok');
 }
 
 /** Deja de usar la nube en este equipo. */
@@ -410,7 +427,7 @@ function usarSoloLocal() {
   clearCloudConfig();
   Cloud.online = false;
   actualizarEstadoNube();
-  mostrarLogin('local');
+  mostrarLogin();
 }
 
 /** Captura de la dirección y la clave del proyecto de Supabase. */
@@ -457,7 +474,7 @@ async function guardarCloudConfig() {
   const estado = await cloudInit();
   actualizarEstadoNube();
   if (estado === 'listo') { sembrarDefaults(); applyBranding(); toast('Conectado', 'ok'); refresh(); }
-  else { mostrarLogin('sin-sesion'); }
+  else { mostrarAccesoNegocio(); }
 }
 
 /* =========================================================================
@@ -1934,7 +1951,7 @@ function cloudCardBody() {
       ${Cloud.online
         ? `<button class="btn btn-line" onclick="sincronizarAhora()">${icon('download', 15)} Actualizar ahora</button>
            <button class="btn btn-danger" onclick="desconectarNube()">Desconectar este equipo</button>`
-        : `<button class="btn btn-primary" onclick="mostrarLogin('sin-sesion')">Entrar al negocio</button>`}
+        : `<button class="btn btn-primary" onclick="mostrarAccesoNegocio()">Entrar al negocio</button>`}
     </div>`;
 }
 
@@ -2312,18 +2329,19 @@ function onCloudChange() {
   refresh();
 }
 
-/** Muestra la pantalla de PIN o la de acceso del negocio, según haga falta. */
-function mostrarLogin(estado) {
-  const cloudView = $('#cloudView'), loginView = $('#loginView');
-  if (estado === 'sin-sesion') {
-    cloudView.classList.remove('hidden');
-    loginView.classList.add('hidden');
-    renderCloudLogin();
-  } else {
-    cloudView.classList.add('hidden');
-    loginView.classList.remove('hidden');
-    renderLogin();
-  }
+/**
+ * Siempre se entra por la pantalla de perfiles y PIN. El acceso del negocio
+ * solo se abre a propósito, desde el aviso del login o desde Ajustes.
+ */
+function mostrarLogin() {
+  $('#cloudView').classList.add('hidden');
+  $('#loginView').classList.remove('hidden');
+  renderLogin();
+}
+function mostrarAccesoNegocio() {
+  $('#loginView').classList.add('hidden');
+  $('#cloudView').classList.remove('hidden');
+  renderCloudLogin();
 }
 
 async function arrancar() {
@@ -2336,7 +2354,7 @@ async function arrancar() {
   sembrarDefaults();
   applyBranding();
   actualizarEstadoNube();
-  mostrarLogin(estado);
+  mostrarLogin();
 }
 
 /** Datos de fábrica, solo si no hay nada guardado ni en la nube ni aquí. */
