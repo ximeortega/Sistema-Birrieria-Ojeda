@@ -330,6 +330,7 @@ function tryLogin() {
   session = { role: loginRole, label: users[loginRole].label };
   loginPin = ''; renderLogin();
   $('#loginView').classList.add('hidden');
+  $('#cloudView').classList.add('hidden');
   $('#appView').classList.remove('hidden');
   $('#userRoleLabel').textContent = session.label;
   $('#userAvatar').textContent = session.label[0];
@@ -340,8 +341,7 @@ function tryLogin() {
 function logout() {
   session = null; closeModal(); closeSheet();
   $('#appView').classList.add('hidden');
-  renderLogin();
-  $('#loginView').classList.remove('hidden');
+  mostrarLogin();
 }
 
 document.addEventListener('keydown', (e) => {
@@ -350,6 +350,15 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { if ($('#modalRoot').innerHTML) closeModal(); else closeSheet(); }
     return;
   }
+  // Si se está escribiendo en un campo (correo, contraseña…) el teclado es de ese
+  // campo: no debe alimentar el PIN por detrás.
+  const foco = e.target;
+  if (foco && (foco.tagName === 'INPUT' || foco.tagName === 'TEXTAREA' ||
+               foco.tagName === 'SELECT' || foco.isContentEditable)) return;
+  // Tampoco cuando la pantalla visible es la del acceso del negocio.
+  if (!$('#cloudView').classList.contains('hidden')) return;
+  if ($('#modalRoot').innerHTML) return;
+
   if (/^[0-9]$/.test(e.key)) pinPress(e.key);
   else if (e.key === 'Backspace') pinClear();
   else if (e.key === 'Enter') tryLogin();
@@ -2387,6 +2396,7 @@ if (demoRole && getUsers()[demoRole]) {
   sembrarDefaults();
   session = { role: demoRole, label: getUsers()[demoRole].label };
   $('#loginView').classList.add('hidden');
+  $('#cloudView').classList.add('hidden');
   $('#appView').classList.remove('hidden');
   $('#userRoleLabel').textContent = session.label;
   $('#userAvatar').textContent = session.label[0];
