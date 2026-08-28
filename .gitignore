@@ -1,0 +1,19 @@
+# Archivos que genera el propio sistema al usarlo
+respaldo-*.json
+ventas-*.csv
+gastos-*.csv
+productos-*.csv
+resumen-por-dia-*.csv
+cortes-*.csv
+
+# Logo propio del negocio (si prefieres no publicarlo, descomenta)
+# logo.png
+
+# Sistema operativo
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Editores
+.vscode/
+*.code-workspace.bak

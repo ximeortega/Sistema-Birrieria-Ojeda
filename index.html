@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
+  <meta name="theme-color" content="#a51420" />
+  <link rel="icon" href="logo.svg" type="image/svg+xml" />
+  <title>Birriería Ojeda · Sistema</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    // Usa el logo real si lo colocas en la carpeta (logo.png / .jpg / .jpeg / .webp);
+    // si no hay ninguno, cae al vectorial logo.svg.
+    var LOGO_SOURCES = ['logo.png','logo.jpg','logo.jpeg','logo.webp','logo.svg'];
+    function logoFallback(img){
+      var i = Number(img.dataset.i || 0) + 1;
+      img.dataset.i = i;
+      if (i < LOGO_SOURCES.length) img.src = LOGO_SOURCES[i];
+      else img.onerror = null;
+    }
+  </script>
+</head>
+<body>
+  <div id="toast" class="toast" aria-live="polite"></div>
+
+  <!-- ================= LOGIN ================= -->
+  <section id="loginView" class="login-view">
+    <div class="login-shell">
+      <div class="brand-panel">
+        <img class="brand-logo" src="logo.png" alt="Birriería Ojeda" data-i="0" onerror="logoFallback(this)" />
+        <p class="eyebrow">Sistema de operación</p>
+        <h1 id="brandName">Birriería Ojeda</h1>
+        <p class="brand-copy">Comandas, cocina, caja y corte diario en una sola pantalla.</p>
+        <div class="brand-flow">
+          <span>Comanda</span><b>→</b><span>Cocina</span><b>→</b><span>Caja</span><b>→</b><span>Corte</span>
+        </div>
+      </div>
+
+      <div class="login-card">
+        <div>
+          <p class="eyebrow red">Acceso</p>
+          <h2>¿Quién eres?</h2>
+        </div>
+
+        <div id="roleGrid" class="role-grid"></div>
+
+        <div>
+          <p class="lbl" style="text-align:center;margin-bottom:10px">Ingresa tu PIN</p>
+          <div id="pinDots" class="pin-dots"></div>
+        </div>
+
+        <div id="keypad" class="keypad"></div>
+
+        <div class="demo-box">
+          <strong>Accesos de prueba</strong>
+          <span>Administrador 1234 · Mesera 1111 · Cocina 2222 · Caja 3333</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= APP ================= -->
+  <section id="appView" class="app-view hidden">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img class="brand-logo small" src="logo.png" alt="Birriería Ojeda" data-i="0" onerror="logoFallback(this)" />
+        <div><strong id="sideBrandName">Birriería Ojeda</strong><span>SISTEMA DE OPERACIÓN</span></div>
+      </div>
+
+      <nav id="navMenu" class="nav-menu"></nav>
+
+      <div class="sidebar-footer">
+        <div class="user-box">
+          <div class="av" id="userAvatar">A</div>
+          <div>
+            <span id="userRoleLabel">Administrador</span>
+            <small id="userStatus">Sesión activa</small>
+          </div>
+        </div>
+        <button id="logoutBtn" class="btn btn-ghost full btn-sm">Cerrar sesión</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p id="pageEyebrow" class="eyebrow red">Operación</p>
+          <h2 id="pageTitle">Inicio</h2>
+        </div>
+        <div class="clock-box">
+          <strong id="clockTime">--:--:--</strong>
+          <span id="clockDate">--</span>
+        </div>
+      </header>
+
+      <div id="pageContent" class="page-content"></div>
+    </main>
+  </section>
+
+  <div id="sheetRoot"></div>
+  <div id="modalRoot"></div>
+  <script src="app.js"></script>
+</body>
+</html>
