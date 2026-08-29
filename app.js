@@ -526,7 +526,7 @@ function renderPage() {
      expenses:renderExpenses, cut:renderCut, products:renderProducts,
      admin:renderAdmin }[currentPage])?.();
 }
-function refresh() { renderNav(); renderPage(); }
+function refresh() { renderNav(); renderPage(); actualizarEstadoNube(); }
 
 setInterval(() => {
   const d = new Date();
@@ -1924,6 +1924,7 @@ function cloudCardBody() {
     <div class="kv"><span>Proyecto</span><b style="font-size:12px;font-weight:700">${esc(cfg.url.replace('https://', ''))}</b></div>
     ${Cloud.error ? `<div class="cloud-msg err" style="margin-top:10px">${esc(Cloud.error)}</div>` : ''}
     <div class="actions" style="margin-top:14px">
+      <button class="btn btn-line" onclick="revisarConexion()">${icon('search', 15)} Revisar conexión</button>
       <button class="btn btn-line" onclick="cloudSettingsPrompt()">${icon('edit', 15)} Cambiar conexión</button>
       ${Cloud.online
         ? `<button class="btn btn-line" onclick="sincronizarAhora()">${icon('download', 15)} Traer de la nube</button>
@@ -1931,6 +1932,76 @@ function cloudCardBody() {
            <button class="btn btn-danger" onclick="desconectarNube()">Desconectar este equipo</button>`
         : `<button class="btn btn-primary" onclick="mostrarAccesoNegocio()">Entrar al negocio</button>`}
     </div>`;
+}
+
+/** Revisa la conexión y dice qué hay realmente en la nube. */
+async function revisarConexion() {
+  if (!Cloud.client) { toast('Este equipo no tiene la conexión configurada', 'err'); return; }
+  toast('Revisando…');
+
+  const correo = Cloud.session && Cloud.session.user ? Cloud.session.user.email : null;
+  let filas = null, fallo = null;
+  try {
+    const c = Cloud.client;
+    const [o, p2, e, cu] = await Promise.all([
+      c.from('orders').select('id'),
+      c.from('products').select('id'),
+      c.from('expenses').select('id'),
+      c.from('cuts').select('id'),
+    ]);
+    const err = [o, p2, e, cu].find((r) => r.error);
+    if (err) throw new Error(err.error.message);
+    filas = {
+      comandas: (o.data || []).length,
+      productos: (p2.data || []).length,
+      gastos: (e.data || []).length,
+      cortes: (cu.data || []).length,
+    };
+  } catch (err) { fallo = err.message; }
+
+  const local = {
+    comandas: allOrders().length,
+    productos: DB.get('products', []).length,
+    gastos: DB.get('expenses', []).length,
+    cortes: DB.get('cuts', []).length,
+  };
+
+  const fila = (nombre, k) => `<div class="kv"><span>${nombre}</span>
+      <b>${local[k]} aquí · ${filas ? filas[k] + ' en la nube' : '—'}</b></div>`;
+
+  const desfasado = filas && Object.keys(local).some((k) => local[k] !== filas[k]);
+
+  openModal(`${modalHead('Diagnóstico', 'Estado de la sincronización')}
+    <div class="modal-body">
+      <div class="cloud-state ${correo && !fallo ? 'on' : 'off'}">
+        <b>${correo ? 'Este equipo entró como ' + esc(correo) : 'Este equipo NO ha entrado al negocio'}</b>
+        <span>${correo ? 'Comparte información con los demás equipos que usen ese mismo correo.'
+                       : 'Lo que se capture aquí no lo verán los demás.'}</span>
+      </div>
+
+      ${fallo ? `<div class="cloud-msg err">${esc(fallo)}</div>` : ''}
+
+      <div>
+        <div class="card-title" style="margin-bottom:8px">Qué hay guardado</div>
+        ${fila('Comandas', 'comandas')}
+        ${fila('Productos del menú', 'productos')}
+        ${fila('Gastos', 'gastos')}
+        ${fila('Cortes', 'cortes')}
+      </div>
+
+      ${desfasado ? `<div class="cloud-msg err">
+        Lo de este equipo y lo de la nube no coincide. Usa <b>Subir todo a la nube</b> desde el
+        equipo que tenga la información buena, y <b>Traer de la nube</b> en los demás.</div>` : ''}
+      ${filas && !filas.comandas && local.comandas ? `<div class="cloud-msg err">
+        La nube no tiene ninguna comanda, por eso los demás equipos no ven nada.
+        Dale a <b>Subir todo a la nube</b>.</div>` : ''}
+
+      <div class="kv"><span>Proyecto</span><b style="font-size:12px">${esc((cloudConfig() || {}).url || '—')}</b></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-line" onclick="closeModal()">Cerrar</button>
+      ${correo ? `<button class="btn btn-primary" onclick="closeModal(); subirTodo()">${icon('upload', 16)} Subir todo</button>` : ''}
+    </div>`);
 }
 
 async function sincronizarAhora() {
@@ -2445,12 +2516,27 @@ function sembrarDefaults() {
   if (!DB.get('funds', null)) DB.set('funds', {});
 }
 
-/** Aviso en la barra lateral: conectado, sin conexión o solo en este equipo. */
+/**
+ * Estado de la conexión. Se muestra en la barra lateral y, sobre todo, en la
+ * barra de arriba: en celular la barra lateral no se ve y no había forma de
+ * enterarse de que el equipo estaba trabajando aislado.
+ */
 function actualizarEstadoNube() {
-  const el = $('#userStatus');
-  if (!el) return;
-  if (typeof Cloud === 'undefined' || !cloudConfig()) { el.textContent = 'Solo en este equipo'; return; }
-  el.textContent = Cloud.online ? 'Sincronizado' : (Cloud.error ? 'Sin conexión' : 'Sesión activa');
+  const hayNube = typeof Cloud !== 'undefined' && !!cloudConfig();
+  const conectado = hayNube && Cloud.online;
+
+  const lat = $('#userStatus');
+  if (lat) lat.textContent = !hayNube ? 'Solo en este equipo'
+    : conectado ? 'Sincronizado' : (Cloud.error ? 'Sin conexión' : 'Falta entrar al negocio');
+
+  const chip = $('#syncChip');
+  if (!chip) return;
+  if (conectado) { chip.classList.add('hidden'); return; }
+  chip.classList.remove('hidden');
+  chip.innerHTML = `${icon('alert', 15)}<span>Sin sincronizar</span>`;
+  chip.title = hayNube
+    ? 'Este equipo no ha entrado al negocio: lo que hagas aquí no lo ven los demás. Toca para conectarlo.'
+    : 'Este equipo trabaja solo.';
 }
 
 arrancar();

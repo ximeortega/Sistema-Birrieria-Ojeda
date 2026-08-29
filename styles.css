@@ -748,6 +748,13 @@ small{font-size:12px}
 .report-grid .btn{justify-content:flex-start;padding:13px 15px}
 
 /* Acceso del negocio y estado de la nube */
+.sync-chip{
+  display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:999px;
+  background:var(--amber-soft);border:1px solid var(--amber-line);color:var(--amber);
+  font-size:12.5px;font-weight:750;white-space:nowrap;transition:.15s;
+}
+.sync-chip:hover{background:#ffefcf}
+
 .cloud-warn{
   display:flex;align-items:center;gap:11px;padding:12px 14px;border-radius:var(--r);
   background:var(--amber-soft);border:1px solid var(--amber-line);color:var(--amber);
@@ -877,6 +884,8 @@ small{font-size:12px}
   .topbar h2{font-size:19px}
   .topbar .eyebrow{font-size:10px}
   .clock-box strong{font-size:16px}
+  .sync-chip{padding:8px;gap:0}
+  .sync-chip span{display:none}
   .clock-box span{display:none}
   .page-content{padding:18px 14px 40px}
 
@@ -969,7 +978,14 @@ small{font-size:12px}
   .tk-group-head{padding:8px 9px}
 
   /* Estado de la nube y aviso del login */
-  .cloud-warn{flex-wrap:wrap}
+  .sync-chip{
+  display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:999px;
+  background:var(--amber-soft);border:1px solid var(--amber-line);color:var(--amber);
+  font-size:12.5px;font-weight:750;white-space:nowrap;transition:.15s;
+}
+.sync-chip:hover{background:#ffefcf}
+
+.cloud-warn{flex-wrap:wrap}
   .cloud-warn .btn{margin-left:0;width:100%;margin-top:4px}
   .cloud-state{padding:11px 13px}
 
