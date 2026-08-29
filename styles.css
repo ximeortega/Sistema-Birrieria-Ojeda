@@ -788,8 +788,31 @@ small{font-size:12px}
 .tab-opt.fixed{opacity:.72;cursor:default;background:#fafafc}
 .tab-opt.fixed.on{background:var(--brand-soft)}
 
-.report-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:9px}
-.report-grid .btn{justify-content:flex-start;padding:13px 15px}
+.rep-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.rep-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:9px}
+.rep-opt{
+  display:flex;align-items:center;gap:11px;padding:12px 13px;text-align:left;
+  border:1.5px solid var(--line);border-radius:var(--r);background:var(--surface);transition:.14s;
+}
+.rep-opt:hover{border-color:#cfcfd8}
+.rep-ic{
+  width:34px;height:34px;border-radius:10px;flex:none;display:grid;place-items:center;
+  background:var(--line-2);color:var(--ink-2);
+}
+.rep-txt{min-width:0;flex:1}
+.rep-txt b{display:block;font-size:13.5px;font-weight:730}
+.rep-txt small{display:block;font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.35}
+.rep-opt .tick{
+  width:20px;height:20px;border-radius:50%;flex:none;border:1.5px solid #d6d6de;
+  display:grid;place-items:center;color:transparent;
+}
+.rep-opt.on{border-color:var(--brand);background:var(--brand-soft)}
+.rep-opt.on .rep-ic{background:var(--brand);color:#fff}
+.rep-opt.on .tick{background:var(--brand);border-color:var(--brand);color:#fff}
+.rep-pie{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  margin-top:16px;padding-top:14px;border-top:1px solid var(--line-2);
+}
 
 /* Acceso del negocio y estado de la nube */
 .sync-chip{
@@ -1027,8 +1050,9 @@ small{font-size:12px}
   .subtabs button{flex:1;justify-content:center;padding:11px 10px;font-size:12.5px}
 
   /* Reportes y respaldo, uno por renglón */
-  .report-grid{grid-template-columns:1fr}
-  .report-grid .btn{width:100%}
+  .rep-lista{grid-template-columns:1fr}
+  .rep-pie{flex-direction:column;align-items:stretch}
+  .rep-pie .actions .btn{flex:1;justify-content:center}
 
   /* Elegir mesa y elegir pestañas del perfil */
   .table-pick{grid-template-columns:1fr 1fr;gap:8px}

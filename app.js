@@ -2330,12 +2330,12 @@ function renderAdminReportes() {
   $('#adminBody').innerHTML = `
     <div class="card" style="margin-top:16px">
       <div class="card-head">
-        <div><div class="card-title">Reportes para Excel</div>
-          <div class="card-sub">Se descargan como archivo <b>.csv</b>: se abren con doble clic en Excel.</div></div>
+        <div><div class="card-title">Descargar reportes</div>
+          <div class="card-sub">Elige el periodo y qué quieres, y bájalo en Excel o en PDF.</div></div>
         ${icon('download', 20, 'muted')}
       </div>
 
-      <div class="field" style="max-width:320px;margin-bottom:14px">
+      <div class="field" style="max-width:340px;margin-bottom:16px">
         <label>¿De qué periodo?</label>
         <select id="repRange">
           <option value="hoy">Hoy</option>
@@ -2347,12 +2347,30 @@ function renderAdminReportes() {
         </select>
       </div>
 
-      <div class="report-grid">
-        <button class="btn btn-line" onclick="exportResumen()">${icon('chart', 16)} Resumen por día</button>
-        <button class="btn btn-line" onclick="exportVentas()">${icon('receipt', 16)} Ventas por comanda</button>
-        <button class="btn btn-line" onclick="exportProductos()">${icon('box', 16)} Productos vendidos</button>
-        <button class="btn btn-line" onclick="exportGastos()">${icon('minus', 16)} Gastos</button>
-        <button class="btn btn-line" onclick="exportCortes()">${icon('wallet', 16)} Cortes guardados</button>
+      <div class="rep-head">
+        <p class="lbl">¿Qué quieres descargar?</p>
+        <div class="actions">
+          <button class="linkbtn" onclick="marcarTodosReportes(true)">Todo</button>
+          <button class="linkbtn" onclick="marcarTodosReportes(false)">Nada</button>
+        </div>
+      </div>
+
+      <div class="rep-lista" id="repLista">
+        ${REPORTES.map((r) => `
+          <button class="rep-opt ${repSeleccion.includes(r.id) ? 'on' : ''}" data-rep="${r.id}"
+                  onclick="toggleReporte('${r.id}')">
+            <span class="rep-ic">${icon(r.icono, 18)}</span>
+            <span class="rep-txt"><b>${r.nombre}</b><small>${r.detalle}</small></span>
+            <i class="tick">${icon('check', 13)}</i>
+          </button>`).join('')}
+      </div>
+
+      <div class="rep-pie">
+        <span class="muted" id="repCuenta">${repSeleccion.length} seleccionado${repSeleccion.length === 1 ? '' : 's'}</span>
+        <div class="actions">
+          <button class="btn btn-line" onclick="descargarPDF()">${icon('print', 16)} Descargar PDF</button>
+          <button class="btn btn-primary" onclick="descargarExcel()">${icon('download', 16)} Descargar Excel</button>
+        </div>
       </div>
     </div>
 
@@ -2601,7 +2619,7 @@ function wipeAll() {
 }
 
 /* =========================================================================
-   9 · REPORTES PARA EXCEL
+   9 · REPORTES — Excel y PDF
    ========================================================================= */
 
 /** Genera un CSV que Excel abre con las columnas ya separadas. */
@@ -2617,7 +2635,7 @@ function toCSV(rows) {
 const nExcel = (n) => String(Number(n || 0).toFixed(2)).replace('.', ',');
 
 function downloadCSV(nombre, rows) {
-  if (rows.length <= 1) { toast('No hay información en ese periodo', 'err'); return; }
+  if (rows.length <= 1) return false;
   const blob = new Blob(['\ufeff' + toCSV(rows)], { type:'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -2626,83 +2644,39 @@ function downloadCSV(nombre, rows) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  toast(`${rows.length - 1} renglones exportados`, 'ok');
+  return true;
 }
 
-/** Rango [desde, hasta] en formato AAAA-MM-DD según el periodo elegido. */
+/** Rango [desde, hasta, etiqueta] según el periodo elegido. */
 function rangoDe(kind) {
   const hoy = new Date();
   const y = hoy.getFullYear(), m = hoy.getMonth();
-  if (kind === 'hoy')   return [todayKey(), todayKey(), todayKey()];
-  if (kind === 'ayer')  return [shiftKey(-1), shiftKey(-1), shiftKey(-1)];
+  if (kind === 'hoy')    return [todayKey(), todayKey(), 'hoy'];
+  if (kind === 'ayer')   return [shiftKey(-1), shiftKey(-1), 'ayer'];
   if (kind === 'semana') return [shiftKey(-6), todayKey(), 'ultimos-7-dias'];
-  if (kind === 'mes')   return [dayKeyOf(new Date(y, m, 1)), dayKeyOf(new Date(y, m + 1, 0)), `${y}-${String(m + 1).padStart(2, '0')}`];
-  if (kind === 'mesant') return [dayKeyOf(new Date(y, m - 1, 1)), dayKeyOf(new Date(y, m, 0)),
-    `${new Date(y, m - 1, 1).getFullYear()}-${String(new Date(y, m - 1, 1).getMonth() + 1).padStart(2, '0')}`];
+  if (kind === 'mes')    return [dayKeyOf(new Date(y, m, 1)), dayKeyOf(new Date(y, m + 1, 0)), `${y}-${String(m + 1).padStart(2, '0')}`];
+  if (kind === 'mesant') {
+    const p = new Date(y, m - 1, 1);
+    return [dayKeyOf(p), dayKeyOf(new Date(y, m, 0)), `${p.getFullYear()}-${String(p.getMonth() + 1).padStart(2, '0')}`];
+  }
   return ['0000-01-01', '9999-12-31', 'historico'];
 }
 const enRango = (fecha, a, b) => fecha >= a && fecha <= b;
 const archivo = (base, sufijo) => `${base}-${bizName().toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${sufijo}`;
 
-function periodoElegido() {
-  const sel = $('#repRange');
-  return rangoDe(sel ? sel.value : 'hoy');
+/** Texto del periodo para los encabezados. */
+function periodoTexto(kind, a, b) {
+  const bonito = (k) => {
+    const [y, m, d] = k.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('es-MX', { day:'numeric', month:'long', year:'numeric' });
+  };
+  if (kind === 'todo') return 'Todo el histórico';
+  if (a === b) return bonito(a);
+  return `Del ${bonito(a)} al ${bonito(b)}`;
 }
 
-/** Una fila por comanda. */
-function exportVentas() {
-  const [a, b, suf] = periodoElegido();
-  const rows = [['Fecha', 'Folio', 'Hora', 'Mesa', 'Cliente', 'Teléfono', 'Dirección', 'Entrega',
-                 'Envío', 'Lo llevó', 'Piezas', 'Total', 'Estado',
-                 'Forma de pago', 'Recibido', 'Cambio', 'Hora de cobro', 'Cobró', 'Levantó']];
-  allOrders().filter((o) => enRango(o.date, a, b))
-    .sort((x, y2) => (x.date + x.createdTime).localeCompare(y2.date + y2.createdTime))
-    .forEach((o) => {
-      const pg = o.payment || {};
-      const en = o.delivery || {};
-      rows.push([o.date, o.folio, o.createdTime, o.table, o.customer || '',
-        en.phone || '', [en.address, en.notes].filter(Boolean).join(' — '), en.mode || '',
-        envioDe(o) ? nExcel(envioDe(o)) : '', en.courier || '',
-        orderPieces(o),
-        nExcel(orderTotal(o)), statusLabel(orderStatus(o)),
-        o.paid ? (pg.method || 'Efectivo') : '', o.paid ? nExcel(pg.received) : '',
-        o.paid ? nExcel(pg.change) : '', pg.time || '', pg.cashier || '', o.waiter || '']);
-    });
-  downloadCSV(archivo('ventas', suf), rows);
-}
-
-/** Una fila por producto, sumando todo el periodo. */
-function exportProductos() {
-  const [a, b, suf] = periodoElegido();
-  const ordenes = allOrders().filter((o) => enRango(o.date, a, b));
-  const lista = topProducts(ordenes, 1000);
-  const total = lista.reduce((s2, p2) => s2 + p2.amount, 0);
-  const rows = [['Producto', 'Piezas vendidas', 'Importe', 'Porcentaje de la venta']];
-  lista.forEach((p2) => rows.push([p2.name, p2.qty, nExcel(p2.amount),
-    total ? nExcel((p2.amount / total) * 100) + '%' : '0%']));
-  if (lista.length) rows.push(['TOTAL', lista.reduce((s2, p2) => s2 + p2.qty, 0), nExcel(total), '100%']);
-  downloadCSV(archivo('productos', suf), rows);
-}
-
-/** Una fila por concepto de gasto. */
-function exportGastos() {
-  const [a, b, suf] = periodoElegido();
-  const rows = [['Fecha', 'Hora', 'Categoría', 'Descripción', 'Concepto', 'Cantidad', 'Responsable', 'Total del gasto']];
-  DB.get('expenses', []).filter((e) => enRango(e.date, a, b))
-    .sort((x, y2) => (x.date + x.time).localeCompare(y2.date + y2.time))
-    .forEach((e) => {
-      // Los gastos capturados con la versión anterior traen conceptos: uno por renglón.
-      const items = (e.items && e.items.length) ? e.items : [{ concept:'', amount:e.amount }];
-      items.forEach((i, idx) => rows.push([e.date, e.time, e.category || 'Otros',
-        idx === 0 ? e.description : '', i.concept || '', nExcel(i.amount), e.responsible,
-        idx === 0 ? nExcel(e.amount) : '']));
-    });
-  downloadCSV(archivo('gastos', suf), rows);
-}
-
-/** Una fila por día: el reporte que más sirve para ver el mes completo. */
-function exportResumen() {
-  const [a, b, suf] = periodoElegido();
+/* ---------- Los datos de cada reporte, como filas ----------------------- */
+function filasResumen(a, b) {
   const dias = [...new Set([
     ...allOrders().map((o) => o.date),
     ...DB.get('expenses', []).map((e) => e.date),
@@ -2715,25 +2689,251 @@ function exportResumen() {
   dias.forEach((d) => {
     const c = cutNumbers(d);
     tV += c.sales; tG += c.spent; tU += c.utility;
-    rows.push([d, c.orders.length, c.paid.length, c.pieces, nExcel(c.sales),
-      nExcel(c.cashSales), nExcel(c.cardSales), nExcel(c.pending),
-      nExcel(c.spent), nExcel(c.utility), nExcel(c.ticket)]);
+    rows.push([d, c.orders.length, c.paid.length, c.pieces, c.sales,
+      c.cashSales, c.cardSales, c.pending, c.spent, c.utility, c.ticket]);
   });
-  if (dias.length) rows.push(['TOTAL', '', '', '', nExcel(tV), '', '', '', nExcel(tG), nExcel(tU), '']);
-  downloadCSV(archivo('resumen-por-dia', suf), rows);
+  if (dias.length) rows.push(['TOTAL', '', '', '', tV, '', '', '', tG, tU, '']);
+  return rows;
 }
 
-/** Una fila por corte guardado. */
-function exportCortes() {
-  const [a, b, suf] = periodoElegido();
+function filasVentas(a, b) {
+  const rows = [['Fecha', 'Folio', 'Hora', 'Mesa', 'Cliente', 'Teléfono', 'Dirección', 'Entrega',
+                 'Envío', 'Lo llevó', 'Piezas', 'Total', 'Estado',
+                 'Forma de pago', 'Recibido', 'Cambio', 'Hora de cobro', 'Cobró', 'Levantó']];
+  allOrders().filter((o) => enRango(o.date, a, b))
+    .sort((x, y2) => (x.date + x.createdTime).localeCompare(y2.date + y2.createdTime))
+    .forEach((o) => {
+      const pg = o.payment || {}, en = o.delivery || {};
+      rows.push([o.date, o.folio, o.createdTime, o.table, o.customer || '',
+        en.phone || '', [en.address, en.notes].filter(Boolean).join(' — '), en.mode || '',
+        envioDe(o) || '', en.courier || '', orderPieces(o),
+        orderTotal(o), statusLabel(orderStatus(o)),
+        o.paid ? (pg.method || 'Efectivo') : '', o.paid ? pg.received : '',
+        o.paid ? pg.change : '', pg.time || '', pg.cashier || '', o.waiter || '']);
+    });
+  return rows;
+}
+
+function filasProductos(a, b) {
+  const lista = topProducts(allOrders().filter((o) => enRango(o.date, a, b)), 1000);
+  const total = lista.reduce((t, p2) => t + p2.amount, 0);
+  const rows = [['Producto', 'Piezas vendidas', 'Importe', 'Porcentaje de la venta']];
+  lista.forEach((p2) => rows.push([p2.name, p2.qty, p2.amount,
+    (total ? (p2.amount / total) * 100 : 0).toFixed(1) + '%']));
+  if (lista.length) rows.push(['TOTAL', lista.reduce((t, p2) => t + p2.qty, 0), total, '100%']);
+  return rows;
+}
+
+function filasGastos(a, b) {
+  const rows = [['Fecha', 'Hora', 'Categoría', 'Descripción', 'Concepto', 'Cantidad', 'Responsable']];
+  let total = 0;
+  DB.get('expenses', []).filter((e) => enRango(e.date, a, b))
+    .sort((x, y2) => (x.date + x.time).localeCompare(y2.date + y2.time))
+    .forEach((e) => {
+      // Los gastos capturados con la versión anterior traen varios conceptos:
+      // se baja una fila por cada uno, sin perder la descripción del gasto.
+      const items = (e.items && e.items.length) ? e.items : [{ concept:'', amount:e.amount }];
+      items.forEach((i) => {
+        total += Number(i.amount || 0);
+        rows.push([e.date, e.time, e.category || 'Otros', e.description, i.concept || '', i.amount, e.responsible]);
+      });
+    });
+  if (rows.length > 1) rows.push(['TOTAL', '', '', '', '', total, '']);
+  return rows;
+}
+
+function filasCortes(a, b) {
   const rows = [['Fecha', 'Hora', 'Ventas', 'Efectivo', 'Tarjeta', 'Gastos', 'Utilidad',
                  'Fondo inicial', 'Efectivo esperado', 'Efectivo contado', 'Diferencia', 'Cerró']];
   DB.get('cuts', []).filter((c) => enRango(c.date, a, b))
     .sort((x, y2) => (x.date + x.time).localeCompare(y2.date + y2.time))
-    .forEach((c) => rows.push([c.date, c.time, nExcel(c.sales), nExcel(c.cashSales || c.sales),
-      nExcel(c.cardSales || 0), nExcel(c.expenses), nExcel(c.utility), nExcel(c.initial),
-      nExcel(c.expected), nExcel(c.counted), nExcel(c.difference), c.closedBy || '']));
-  downloadCSV(archivo('cortes', suf), rows);
+    .forEach((c) => rows.push([c.date, c.time, c.sales, c.cashSales != null ? c.cashSales : c.sales,
+      c.cardSales || 0, c.expenses, c.utility, c.initial, c.expected, c.counted, c.difference,
+      c.closedBy || '']));
+  return rows;
+}
+
+/** Catálogo de reportes: mismo origen para Excel y para PDF. */
+const REPORTES = [
+  { id:'corte',     nombre:'Corte del día',        icono:'wallet',  detalle:'Ventas, efectivo y diferencia de hoy' },
+  { id:'resumen',   nombre:'Resumen por día',      icono:'chart',   filas:filasResumen,   dinero:[4,5,6,7,8,9,10], detalle:'Una fila por día del periodo' },
+  { id:'ventas',    nombre:'Ventas por comanda',   icono:'receipt', filas:filasVentas,    dinero:[8,11,14,15],     detalle:'Cada comanda con su total y forma de pago' },
+  { id:'productos', nombre:'Productos vendidos',   icono:'box',     filas:filasProductos, dinero:[2],              detalle:'Piezas e importe de cada producto' },
+  { id:'gastos',    nombre:'Gastos',               icono:'minus',   filas:filasGastos,    dinero:[5],              detalle:'Cada concepto con su responsable' },
+  { id:'cortes',    nombre:'Cortes guardados',     icono:'check',   filas:filasCortes,    dinero:[2,3,4,5,6,7,8,9,10], detalle:'Historial de cierres con su diferencia' },
+];
+
+let repSeleccion = ['corte', 'resumen', 'ventas', 'gastos'];
+
+function toggleReporte(id) {
+  const i = repSeleccion.indexOf(id);
+  if (i >= 0) repSeleccion.splice(i, 1); else repSeleccion.push(id);
+  $$('#repLista .rep-opt').forEach((b) => b.classList.toggle('on', repSeleccion.includes(b.dataset.rep)));
+  const n = repSeleccion.length;
+  $('#repCuenta').textContent = n ? `${n} seleccionado${n === 1 ? '' : 's'}` : 'Nada seleccionado';
+}
+function marcarTodosReportes(todos) {
+  repSeleccion = todos ? REPORTES.map((r) => r.id) : [];
+  $$('#repLista .rep-opt').forEach((b) => b.classList.toggle('on', repSeleccion.includes(b.dataset.rep)));
+  const n = repSeleccion.length;
+  $('#repCuenta').textContent = n ? `${n} seleccionado${n === 1 ? '' : 's'}` : 'Nada seleccionado';
+}
+
+/* ---------- Descargar en Excel ------------------------------------------ */
+function descargarExcel() {
+  if (!repSeleccion.length) { toast('Elige al menos un reporte', 'err'); return; }
+  const kind = $('#repRange').value;
+  const [a, b, suf] = rangoDe(kind);
+  let hechos = 0;
+
+  REPORTES.filter((r) => repSeleccion.includes(r.id)).forEach((r) => {
+    const rows = r.id === 'corte' ? filasCorteDelDia() : r.filas(a, b);
+    // Excel necesita los números con coma decimal.
+    const listas = rows.map((fila, iF) => fila.map((v, iC) => {
+      if (iF === 0 || !r.dinero || !r.dinero.includes(iC)) return v;
+      return v === '' || v === null || v === undefined ? '' : nExcel(v);
+    }));
+    if (downloadCSV(archivo(r.id, suf), listas)) hechos++;
+  });
+
+  toast(hechos ? `${hechos} archivo${hechos === 1 ? '' : 's'} descargado${hechos === 1 ? '' : 's'}` : 'No hay información en ese periodo',
+        hechos ? 'ok' : 'err');
+}
+
+/** El corte de hoy, en dos columnas. */
+function filasCorteDelDia() {
+  const c = cutNumbers();
+  return [
+    ['Concepto', 'Importe'],
+    ['Ventas cobradas', c.sales],
+    ['— en efectivo', c.cashSales],
+    ['— tarjeta y transferencia', c.cardSales],
+    ['Sin cobrar', c.pending],
+    ['Gastos del día', c.spent],
+    ['Utilidad', c.utility],
+    ['Fondo inicial', c.fund],
+    ['Efectivo que debe haber', c.expected],
+    ['Comandas levantadas', c.orders.length],
+    ['Tickets cobrados', c.paid.length],
+    ['Piezas vendidas', c.pieces],
+    ['Ticket promedio', c.ticket],
+  ];
+}
+
+/* ---------- Descargar en PDF -------------------------------------------- */
+/** Tabla con color para el documento. */
+function tablaPDF(rows, dinero) {
+  if (!rows || rows.length <= 1) return '<p class="vacio">Sin movimientos en este periodo.</p>';
+  const celda = (v, iC, esTotal) => {
+    const num = dinero && dinero.includes(iC);
+    const txt = num && v !== '' && v !== null && v !== undefined ? money(v) : esc(String(v == null ? '' : v));
+    return `<td class="${num ? 'num' : ''}">${txt}</td>`;
+  };
+  const cuerpo = rows.slice(1).map((f) => {
+    const esTotal = String(f[0]).toUpperCase() === 'TOTAL';
+    return `<tr class="${esTotal ? 'total' : ''}">${f.map((v, i) => celda(v, i, esTotal)).join('')}</tr>`;
+  }).join('');
+  return `<table><thead><tr>${rows[0].map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${cuerpo}</tbody></table>`;
+}
+
+/** Bloque especial del corte del día, con tarjetas de color. */
+function corteEnPDF() {
+  const c = cutNumbers();
+  const tarjeta = (t, v, clase) => `<div class="tarjeta ${clase || ''}"><span>${t}</span><b>${money(v)}</b></div>`;
+  return `
+    <div class="tarjetas">
+      ${tarjeta('Ventas cobradas', c.sales, 'oscura')}
+      ${tarjeta('Gastos', c.spent, 'roja')}
+      ${tarjeta('Utilidad', c.utility, 'verde')}
+      ${tarjeta('Sin cobrar', c.pending)}
+    </div>
+    <table>
+      <tbody>
+        <tr><td>Fondo inicial</td><td class="num">${money(c.fund)}</td></tr>
+        <tr><td>+ Ventas en efectivo</td><td class="num">${money(c.cashSales)}</td></tr>
+        <tr><td>+ Tarjeta y transferencia</td><td class="num">${money(c.cardSales)}</td></tr>
+        <tr><td>− Gastos</td><td class="num">${money(c.spent)}</td></tr>
+        <tr class="total"><td>Efectivo que debe haber</td><td class="num">${money(c.expected)}</td></tr>
+        <tr><td>Comandas levantadas</td><td class="num">${c.orders.length}</td></tr>
+        <tr><td>Tickets cobrados</td><td class="num">${c.paid.length}</td></tr>
+        <tr><td>Piezas vendidas</td><td class="num">${num(c.pieces)}</td></tr>
+        <tr><td>Ticket promedio</td><td class="num">${money(c.ticket)}</td></tr>
+      </tbody>
+    </table>`;
+}
+
+function descargarPDF() {
+  if (!repSeleccion.length) { toast('Elige al menos un reporte', 'err'); return; }
+  const kind = $('#repRange').value;
+  const [a, b] = rangoDe(kind);
+  const elegidos = REPORTES.filter((r) => repSeleccion.includes(r.id));
+
+  const secciones = elegidos.map((r) => `
+    <section>
+      <h2>${esc(r.nombre)}</h2>
+      ${r.id === 'corte' ? corteEnPDF() : tablaPDF(r.filas(a, b), r.dinero)}
+    </section>`).join('');
+
+  const doc = `<!doctype html><html lang="es"><head><meta charset="utf-8">
+<title>${esc(bizName())} · Reporte</title>
+<style>
+  @page { size:A4; margin:14mm 12mm; }
+  *{box-sizing:border-box}
+  body{
+    margin:0;font-family:"Segoe UI",Arial,Helvetica,sans-serif;color:#16161a;font-size:11px;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;
+  }
+  .portada{
+    background:linear-gradient(135deg,#a51420,#6b0c14);color:#fff;
+    padding:22px 24px;border-radius:12px;margin-bottom:18px;
+  }
+  .portada h1{margin:0;font-size:22px;letter-spacing:.04em;text-transform:uppercase}
+  .portada p{margin:6px 0 0;font-size:12px;opacity:.85}
+  .portada .fecha{margin-top:12px;font-size:10.5px;opacity:.7}
+  section{margin-bottom:20px;page-break-inside:auto}
+  h2{
+    font-size:13px;margin:0 0 9px;padding:7px 11px;border-radius:7px;
+    background:#fdf1f2;color:#8c111c;border-left:4px solid #a51420;
+  }
+  table{width:100%;border-collapse:collapse;margin-bottom:6px}
+  th{
+    background:#2b2b31;color:#fff;font-size:9.5px;text-transform:uppercase;
+    letter-spacing:.04em;padding:6px 8px;text-align:left;
+  }
+  td{padding:5px 8px;border-bottom:1px solid #ececf0}
+  tbody tr:nth-child(even){background:#fafafc}
+  td.num,th:last-child{text-align:right;font-variant-numeric:tabular-nums}
+  tr.total td{background:#fdf1f2;font-weight:800;color:#8c111c;border-top:2px solid #a51420}
+  .tarjetas{display:flex;gap:8px;margin-bottom:12px}
+  .tarjeta{
+    flex:1;border:1px solid #e7e7ec;border-radius:9px;padding:10px 12px;background:#fff;
+  }
+  .tarjeta span{display:block;font-size:9.5px;color:#74747e}
+  .tarjeta b{display:block;font-size:16px;margin-top:3px}
+  .tarjeta.oscura{background:#16161a;border-color:#16161a;color:#fff}
+  .tarjeta.oscura span{color:#b9b9c4}
+  .tarjeta.roja b{color:#8c111c}
+  .tarjeta.verde b{color:#0f7a46}
+  .vacio{color:#74747e;font-style:italic;padding:6px 0}
+  .pie{margin-top:22px;padding-top:10px;border-top:1px solid #ececf0;font-size:9.5px;color:#74747e;text-align:center}
+</style></head><body>
+  <div class="portada">
+    <h1>${esc(bizName())}</h1>
+    <p>${esc(periodoTexto(kind, a, b))}</p>
+    <div class="fecha">Generado el ${esc(dateText())} a las ${esc(hourMin())}</div>
+  </div>
+  ${secciones}
+  <div class="pie">${esc(bizName())} · Sistema de operación · Hecho por Ximena Ortega</div>
+</body></html>`;
+
+  const v = window.open('', '_blank');
+  if (!v) { toast('El navegador bloqueó la ventana. Permite las ventanas emergentes.', 'err'); return; }
+  v.document.write(doc);
+  v.document.close();
+  v.focus();
+  // Se deja un momento para que cargue antes de abrir el diálogo de impresión.
+  setTimeout(() => { try { v.print(); } catch (e) {} }, 400);
+  toast('En el diálogo elige "Guardar como PDF"', 'ok');
 }
 
 /* =========================================================================

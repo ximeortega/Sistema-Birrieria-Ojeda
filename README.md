@@ -104,14 +104,19 @@ Dos cosas nada más:
   (valor predeterminado para los días nuevos; el fondo de hoy se ajusta en Corte).
 - **Respaldo**: descargar toda la información en un archivo `.json` y restaurarla después.
   Como los datos viven en este navegador, conviene respaldar seguido.
-- **Reportes para Excel**: se elige el periodo (hoy, ayer, últimos 7 días, este mes,
-  mes anterior o todo el histórico) y se descargan como `.csv`, que Excel abre con doble clic:
+- **Descargar reportes**: se elige el periodo (hoy, ayer, últimos 7 días, este mes, mes
+  anterior o todo el histórico), se marca lo que se quiera y se baja en **Excel** o en **PDF**:
+  - **Corte del día** — ventas, efectivo, gastos, utilidad y el control de caja.
   - **Resumen por día** — una fila por día: comandas, tickets, piezas, ventas, efectivo,
     tarjeta, sin cobrar, gastos, utilidad y ticket promedio, con su renglón de totales.
-  - **Ventas por comanda** — folio, mesa, cliente, total, forma de pago, cambio, quién cobró.
+  - **Ventas por comanda** — folio, mesa, cliente, envío, total, forma de pago, quién cobró.
   - **Productos vendidos** — piezas, importe y porcentaje sobre la venta.
   - **Gastos** — fecha, categoría, descripción, cantidad y responsable.
   - **Cortes guardados** — con el efectivo esperado, el contado y la diferencia.
+
+  En **Excel** baja un archivo por reporte. En **PDF** sale un solo documento con los colores
+  del negocio, encabezado, tablas y totales resaltados; el navegador abre el diálogo de
+  impresión y ahí se elige *Guardar como PDF*.
 - **Zona de riesgo**: borrar las comandas y gastos de hoy, o borrar toda la información.
 
 ## Diseño

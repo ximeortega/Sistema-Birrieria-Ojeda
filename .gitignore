@@ -9,6 +9,8 @@ cortes-*.csv
 # Logo propio del negocio (si prefieres no publicarlo, descomenta)
 # logo.png
 
+ejemplo-reporte.html
+
 # Sistema operativo
 Thumbs.db
 desktop.ini
