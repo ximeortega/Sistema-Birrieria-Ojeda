@@ -348,6 +348,7 @@ function abrirSesion(role, saludar) {
   $('#appView').classList.remove('hidden');
   $('#userRoleLabel').textContent = session.label;
   $('#userAvatar').textContent = session.label[0];
+  $('#cuentaAv').textContent = session.label[0];
   applyBranding();
   go(navOf(role)[0][0]);
   if (saludar) toast('Bienvenido, ' + session.label, 'ok');
@@ -2019,6 +2020,12 @@ async function revisarConexion() {
         La nube no tiene ninguna comanda, por eso los demás equipos no ven nada.
         Dale a <b>Subir todo a la nube</b>.</div>` : ''}
 
+      <div class="kv"><span>Aviso instantáneo</span>
+        <b class="${Cloud.realtimeOk ? 'text-green' : 'text-red'}">${Cloud.realtimeOk ? 'Conectado' : 'No conectado'}</b></div>
+      <div class="kv"><span>Repaso automático</span><b class="text-green">Cada 10 segundos</b></div>
+      ${!Cloud.realtimeOk ? `<div class="cloud-msg err">
+        El aviso instantáneo no está conectado, así que los cambios tardan hasta 10 segundos en
+        llegar. Para que sea inmediato, ejecuta <b>supabase-realtime.sql</b> en Supabase.</div>` : ''}
       <div class="kv"><span>Proyecto</span><b style="font-size:12px">${esc((cloudConfig() || {}).url || '—')}</b></div>
     </div>
     <div class="modal-foot">
@@ -2184,6 +2191,7 @@ function saveProfile(id) {
     session.label = label;
     $('#userRoleLabel').textContent = label;
     $('#userAvatar').textContent = label[0];
+    $('#cuentaAv').textContent = label[0];
   }
   closeModal();
   toast('Perfil actualizado', 'ok');
@@ -2548,6 +2556,43 @@ function sembrarDefaults() {
  * barra de arriba: en celular la barra lateral no se ve y no había forma de
  * enterarse de que el equipo estaba trabajando aislado.
  */
+/**
+ * Menú de cuenta. En celular la barra lateral no se ve, así que sin esto no
+ * había forma de cerrar sesión ni de saber con qué perfil se está trabajando.
+ */
+function abrirCuenta() {
+  const hayNube = typeof Cloud !== 'undefined' && !!cloudConfig();
+  const conectado = hayNube && Cloud.online;
+  const correo = conectado && Cloud.session && Cloud.session.user ? Cloud.session.user.email : '';
+
+  openModal(`
+    <div class="modal-head">
+      <div style="display:flex;align-items:center;gap:12px;min-width:0">
+        <span class="cuenta-av-grande">${esc((session.label || '?')[0])}</span>
+        <div style="min-width:0">
+          <p class="eyebrow red">Sesión activa</p>
+          <h3>${esc(session.label)}</h3>
+        </div>
+      </div>
+      <button class="close-x" onclick="closeModal()">${icon('close', 18)}</button>
+    </div>
+    <div class="modal-body">
+      <div class="cloud-state ${conectado ? 'on' : 'off'}">
+        <b>${conectado ? 'Sincronizado' : hayNube ? 'Este equipo no ha entrado al negocio' : 'Este equipo trabaja solo'}</b>
+        <span>${conectado ? esc(correo) + ' · lo que hagas aquí lo ven los demás'
+                          : 'Lo que se capture aquí no lo verán los demás equipos.'}</span>
+      </div>
+      ${!conectado && hayNube
+        ? `<button class="btn btn-primary full" onclick="closeModal(); mostrarAccesoNegocio()">
+             ${icon('upload', 16)} Conectar este equipo</button>` : ''}
+      ${conectado
+        ? `<button class="btn btn-line full" onclick="closeModal(); revisarConexion()">
+             ${icon('search', 16)} Revisar sincronización</button>` : ''}
+      <button class="btn btn-danger full" onclick="closeModal(); logout()">Cerrar sesión</button>
+      <p class="firma cuenta">Hecho por <b>Ximena Ortega</b></p>
+    </div>`);
+}
+
 /** El aviso lleva a conectar el equipo, o muestra el diagnóstico si ya entró. */
 function tocarSyncChip() {
   if (typeof Cloud !== 'undefined' && Cloud.online) revisarConexion();

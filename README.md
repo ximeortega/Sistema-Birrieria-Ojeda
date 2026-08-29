@@ -166,6 +166,16 @@ información en tiempo real**.
 - Cada comanda es **una fila**: la mesera puede levantar una mientras cocina marca otra lista,
   sin que se pisen.
 - Solo se sube lo que cambió, no toda la información.
-- Se escucha en tiempo real: la comanda aparece en cocina en cuanto se manda.
+- **Dos vías, para que nunca se quede algo sin llegar**: el aviso instantáneo de Supabase, y
+  un repaso cada 10 segundos que trae solo lo modificado desde la última revisión. También
+  se pone al día al volver a la app y al recuperar internet.
+- Lo que este equipo cambió y aún no sube **manda sobre lo que baja de la nube**, para que un
+  aviso no pise una edición reciente.
+- Si el aviso instantáneo no llega a conectar, todo sigue funcionando con el repaso; en
+  `Ajustes → Revisar conexión` se ve el estado de ambos.
+
+> Para que los cambios lleguen **al instante** hay que ejecutar también `supabase-realtime.sql`.
+> Sin eso, Supabase no entrega los avisos de actualización cuando las tablas tienen RLS,
+> y los cambios tardan hasta 10 segundos en aparecer.
 - Se conserva una copia local en cada equipo, así que si se cae el internet se sigue trabajando.
 - Los datos están protegidos: cada negocio solo ve lo suyo (RLS por usuario en Supabase).

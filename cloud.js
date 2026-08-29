@@ -37,7 +37,13 @@ const Cloud = {
   espejo: {},
   pendientes: new Set(),   // claves que no se pudieron subir
   reintento: null,
+  desde: {},               // último updated_at visto por tabla
+  latido: null,            // repaso periódico
+  realtimeOk: false,       // ¿el aviso instantáneo quedó conectado?
 };
+
+const TABLAS = ['products', 'orders', 'expenses', 'cuts'];
+const A_OBJETO = {};       // se llena más abajo, cuando existen los convertidores
 
 /** Marca lo que ya está confirmado en la nube. */
 function marcarSincronizado(key, filas) {
@@ -147,6 +153,8 @@ async function cloudInit() {
   Cloud.online = true;
   await cloudPullAll();
   cloudListen();
+  iniciarLatido();
+  engancharDespertares();
   return 'listo';
 }
 
@@ -178,7 +186,9 @@ async function cloudSignOut() {
   Cloud.session = null;
   Cloud.online = false;
   Cloud.espejo = {};
+  Cloud.desde = {};
   Cloud.pendientes.clear();
+  detenerLatido();
 }
 
 function traducirError(msg) {
@@ -228,9 +238,11 @@ async function cloudPullAll() {
       expenses: (ex.data || []).map(filaAGasto),
       cuts:     (cu.data || []).map(filaACorte),
     };
+    const crudo = { products: pr.data, orders: or_.data, expenses: ex.data, cuts: cu.data };
     Object.keys(bajado).forEach((k) => {
       marcarSincronizado(k, bajado[k]);              // lo de la nube queda confirmado
       stateSet(k, fusionarConPendientes(k, bajado[k]));  // sin perder lo que falta subir
+      marcarLeidoHasta(k, crudo[k]);
     });
 
     const ajustes = (se.data && se.data.data) || {};
@@ -238,6 +250,88 @@ async function cloudPullAll() {
     Cloud.error = null;
   } catch (e) {
     Cloud.error = 'No se pudo leer de la nube: ' + e.message;
+  }
+}
+
+/**
+ * Trae solo lo que cambió desde la última vez, usando updated_at.
+ * Es la red de seguridad: aunque el aviso instantáneo falle o el celular haya
+ * estado en reposo, en el siguiente repaso todo queda al día sin traer de
+ * vuelta el histórico completo.
+ */
+async function cloudRefrescar() {
+  const c = Cloud.client;
+  if (!c || !Cloud.online) return false;
+  let hubo = false;
+
+  for (const tabla of TABLAS) {
+    const desde = Cloud.desde[tabla] || '1970-01-01T00:00:00Z';
+    try {
+      const { data, error } = await c.from(tabla).select('*')
+        .gte('updated_at', desde).order('updated_at', { ascending: true });
+      if (error) throw new Error(error.message);
+      if (!data || !data.length) continue;
+
+      const sinSubir = sinSubirDe(tabla);
+      const actual = new Map(((typeof stateGet === 'function' && stateGet(tabla)) || []).map((x) => [x.id, x]));
+      const espejo = Cloud.espejo[tabla] || (Cloud.espejo[tabla] = new Map());
+
+      data.forEach((r) => {
+        const fila = A_OBJETO[tabla](r);
+        espejo.set(fila.id, JSON.stringify(fila));   // la nube ya lo tiene así
+        if (sinSubir.has(fila.id)) return;           // lo de este equipo manda hasta que suba
+        const previo = actual.get(fila.id);
+        if (!previo || JSON.stringify(previo) !== JSON.stringify(fila)) {
+          actual.set(fila.id, fila);
+          hubo = true;
+        }
+      });
+
+      if (hubo) stateSet(tabla, [...actual.values()]);
+      Cloud.desde[tabla] = data[data.length - 1].updated_at;
+    } catch (e) {
+      Cloud.error = 'No se pudo revisar ' + tabla + ': ' + e.message;
+    }
+  }
+
+  // Lo que este equipo dejó pendiente se reintenta en el mismo repaso.
+  for (const key of [...Cloud.pendientes]) await cloudSyncArray(key, stateGet(key) || []);
+  return hubo;
+}
+
+/** Guarda hasta dónde se leyó, para pedir solo lo nuevo la próxima vez. */
+function marcarLeidoHasta(tabla, filas) {
+  const t = (filas || []).map((r) => r.updated_at).filter(Boolean).sort().pop();
+  if (t) Cloud.desde[tabla] = t;
+}
+
+/** Repaso automático mientras la app esté a la vista. */
+function iniciarLatido() {
+  detenerLatido();
+  Cloud.latido = setInterval(async () => {
+    if (!Cloud.online) return;
+    if (typeof document !== 'undefined' && document.hidden) return;   // en reposo no gasta datos
+    const hubo = await cloudRefrescar();
+    if (hubo && typeof onCloudChange === 'function') onCloudChange();
+    if (typeof onCloudStatus === 'function') onCloudStatus();
+  }, 10000);
+}
+function detenerLatido() { if (Cloud.latido) { clearInterval(Cloud.latido); Cloud.latido = null; } }
+
+/** Al volver a la app o al recuperar internet, se pone al día de inmediato. */
+function engancharDespertares() {
+  if (typeof document === 'undefined' || Cloud._enganchado) return;
+  Cloud._enganchado = true;
+  const alDia = async () => {
+    if (!Cloud.online) return;
+    const hubo = await cloudRefrescar();
+    if (hubo && typeof onCloudChange === 'function') onCloudChange();
+    if (typeof onCloudStatus === 'function') onCloudStatus();
+  };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) alDia(); });
+  if (typeof window !== 'undefined') {
+    window.addEventListener('online', alDia);
+    window.addEventListener('focus', alDia);
   }
 }
 
@@ -256,6 +350,7 @@ async function cloudPullTable(tabla) {
     if (error) throw new Error(error.message);
     const mapa = { products: filaAProducto, orders: filaAOrden, expenses: filaAGasto, cuts: filaACorte };
     const filas = (data || []).map(mapa[tabla]);
+    marcarLeidoHasta(tabla, data);
     const habiaPendientes = sinSubirDe(tabla).size > 0;
     const unido = fusionarConPendientes(tabla, filas);
     marcarSincronizado(tabla, filas);
@@ -283,6 +378,7 @@ const productoAFila = (p) => ({
 const corteAFila = (c) => ({ id: c.id, date: c.date, time: c.time, data: c });
 
 const A_FILA = { products: productoAFila, orders: ordenAFila, expenses: gastoAFila, cuts: corteAFila };
+Object.assign(A_OBJETO, { products: filaAProducto, orders: filaAOrden, expenses: filaAGasto, cuts: filaACorte });
 
 /**
  * Sube solo lo que cambió respecto a lo que la nube ya tiene confirmado.
@@ -379,11 +475,15 @@ function cloudListen() {
           if (typeof onCloudChange === 'function') onCloudChange(tabla);
         });
       })
-      .subscribe();
+      .subscribe((estado) => {
+        if (estado === 'SUBSCRIBED') Cloud.realtimeOk = true;
+        if (typeof onCloudStatus === 'function') onCloudStatus();
+      });
     Cloud.channels.push(ch);
   });
 }
 function cloudStopListening() {
   Cloud.channels.forEach((ch) => { try { Cloud.client.removeChannel(ch); } catch {} });
   Cloud.channels = [];
+  Cloud.realtimeOk = false;
 }
