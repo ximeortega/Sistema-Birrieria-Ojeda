@@ -1554,11 +1554,7 @@ function renderCut() {
   const cuts = [...DB.get('cuts', [])].sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
 
   $('#pageContent').innerHTML = `
-    <div class="section-head" style="margin-top:0">
-      <div><h3>Corte del día</h3><p style="text-transform:capitalize">${dateText()}</p></div>
-    </div>
-
-    <div class="card">
+    <div class="card" style="margin-top:0">
       <div class="field-grid two">
         <div class="field"><label>Fondo inicial de hoy</label>
           <input id="initialFund" type="number" inputmode="numeric" value="${c.fund}" onchange="updateDayFund(this.value)"></div>
@@ -1714,7 +1710,7 @@ function renderProducts() {
 
   $('#pageContent').innerHTML = `
     <div class="section-head" style="margin-top:0">
-      <div><h3>Menú y precios</h3><p>${ps.filter((p) => p.active).length} productos activos de ${ps.length}.</p></div>
+      <p class="muted" style="font-size:13px">${ps.filter((p) => p.active).length} productos activos de ${ps.length}.</p>
       <button class="btn btn-primary" onclick="editProduct()">${icon('plus', 17)} Nuevo producto</button>
     </div>
     ${cats.map((c) => `
