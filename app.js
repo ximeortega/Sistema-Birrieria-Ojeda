@@ -817,6 +817,7 @@ function orderCard(o) {
           ${o.customer ? `<span>·</span><span>${esc(o.customer)}</span>` : ''}
           ${!o.paid && mins > 0 ? `<span>·</span><span>${mins} min</span>` : ''}
         </div>
+        ${o.delivery ? `<div class="entrega-mini">${icon('bag', 13)}<span>${esc(textoEntrega(o))}</span></div>` : ''}
       </div>
       <span class="status ${s}">${statusLabel(s)}</span>
     </div>
@@ -859,13 +860,73 @@ function newOrder() {
     </div>`, 'wide');
 }
 
+const esParaLlevar = (mesa) => mesa === 'Para llevar';
+
 function chooseTable(t) {
   const abierta = dayOrders().find((o) => !o.paid && o.table === t);
   closeModal();
-  if (abierta && t !== 'Para llevar') { editOrder(abierta.id); return; }
+  if (abierta && !esParaLlevar(t)) { editOrder(abierta.id); return; }
   draft = { orderId:null, table:t, customer:'', items:[], people:['Plato 1'], person:'Plato 1' };
   menuFilter = { cat:'TODO', q:'' };
-  openBuilder();
+  // Un pedido para llevar necesita a dónde va antes de empezar a capturarlo.
+  if (esParaLlevar(t)) pedirDatosEntrega(true);
+  else openBuilder();
+}
+
+/**
+ * Datos de entrega. `alEmpezar` es true cuando se está levantando el pedido:
+ * al guardar se abre el menú; si no, solo se actualiza lo que ya se capturó.
+ */
+function pedirDatosEntrega(alEmpezar) {
+  const d = draft.delivery || {};
+  openModal(`${modalHead('Pedido para llevar', '¿A dónde va?')}
+    <div class="modal-body">
+      <div class="field"><label>¿A nombre de quién?</label>
+        <input id="enNombre" placeholder="Nombre del cliente" value="${esc(draft.customer || '')}"></div>
+      <div class="field"><label>Teléfono <i class="opt">opcional</i></label>
+        <input id="enTel" type="tel" inputmode="tel" placeholder="10 dígitos" value="${esc(d.phone || '')}"></div>
+      <div class="field"><label>Dirección <i class="opt">opcional</i></label>
+        <textarea id="enDir" placeholder="Calle, número, colonia">${esc(d.address || '')}</textarea></div>
+      <div class="field"><label>Referencias o indicaciones <i class="opt">opcional</i></label>
+        <input id="enRef" placeholder="Ej. casa blanca, portón negro, tocar el timbre" value="${esc(d.notes || '')}"></div>
+      <div class="field"><label>¿Cómo se entrega?</label>
+        <div class="seg2" id="enTipo">
+          ${['Pasan por él', 'A domicilio'].map((t) => `
+            <button class="${(d.mode || 'Pasan por él') === t ? 'on' : ''}" data-modo="${t}"
+              onclick="$$('#enTipo button').forEach(b=>b.classList.remove('on')); this.classList.add('on')">${t}</button>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      ${alEmpezar ? `<button class="btn btn-line" onclick="closeModal()">Cancelar</button>`
+                  : `<button class="btn btn-line" onclick="closeModal()">Cerrar</button>`}
+      <button class="btn btn-primary" onclick="guardarDatosEntrega(${!!alEmpezar})">
+        ${alEmpezar ? 'Continuar' : 'Guardar'}</button>
+    </div>`);
+}
+
+function guardarDatosEntrega(alEmpezar) {
+  const nombre = $('#enNombre').value.trim();
+  if (!nombre) { toast('Ponle al menos un nombre al pedido', 'err'); return; }
+  const activo = [...$$('#enTipo button')].find((b) => b.classList.contains('on'));
+
+  draft.customer = nombre;
+  draft.delivery = {
+    phone:   $('#enTel').value.trim(),
+    address: $('#enDir').value.trim(),
+    notes:   $('#enRef').value.trim(),
+    mode:    activo ? activo.dataset.modo : 'Pasan por él',
+  };
+  closeModal();
+  if (alEmpezar) openBuilder();
+  else renderTicket();
+}
+
+/** Resumen corto para las tarjetas y los tickets. */
+function textoEntrega(o) {
+  const d = o.delivery;
+  if (!d) return '';
+  return [d.mode, d.phone, d.address, d.notes].filter(Boolean).join(' · ');
 }
 
 function editOrder(id) {
@@ -874,6 +935,7 @@ function editOrder(id) {
   const people = orderPeople(o);
   draft = {
     orderId:o.id, table:o.table, customer:o.customer || '',
+    delivery:o.delivery ? { ...o.delivery } : null,
     items:JSON.parse(JSON.stringify(o.items)),
     people: people.length ? people : ['Plato 1'],
     person: people.length ? people[0] : 'Plato 1',
@@ -895,7 +957,9 @@ function openBuilder() {
               <h3 id="builderTitle">${esc(draft.table)}</h3>
             </div>
           </div>
-          <button class="btn btn-line btn-sm" onclick="pickTable()">${icon('table', 15)} Cambiar mesa</button>
+          ${esParaLlevar(draft.table)
+            ? `<button class="btn btn-soft btn-sm" onclick="pedirDatosEntrega(false)">${icon('bag', 15)} Datos de entrega</button>`
+            : `<button class="btn btn-line btn-sm" onclick="pickTable()">${icon('table', 15)} Cambiar mesa</button>`}
         </div>
 
         <div class="sheet-body">
@@ -1146,12 +1210,14 @@ function saveOrder() {
   if (draft.orderId) {
     const o = orders.find((x) => x.id === draft.orderId);
     o.items = draft.items; o.table = draft.table; o.customer = draft.customer;
+    o.delivery = draft.delivery || null;
     o.updatedAt = new Date().toISOString();
   } else {
     orders.push({
       id:uid(),
       folio:String(orders.filter((o) => o.date === todayKey()).length + 1).padStart(3, '0'),
       date:todayKey(), table:draft.table, customer:draft.customer,
+      delivery:draft.delivery || null,
       createdAt:new Date().toISOString(), createdTime:hourMin(),
       waiter:session.label, items:draft.items, paid:false,
     });
@@ -1169,6 +1235,12 @@ function viewOrder(id) {
   openModal(`${modalHead('Ticket #' + o.folio, o.table)}
     <div class="modal-body">
       <div class="tk-line"><span>${esc(o.createdTime)} · ${esc(o.waiter || '—')}</span><span class="status ${orderStatus(o)}">${statusLabel(orderStatus(o))}</span></div>
+      ${o.delivery ? `<div class="entrega-aviso">${icon('bag', 15)}
+        <div><b>Para llevar · ${esc(o.delivery.mode || '')}</b>
+          ${o.customer ? `<span>${esc(o.customer)}</span>` : ''}
+          ${o.delivery.phone ? `<span>Tel. ${esc(o.delivery.phone)}</span>` : ''}
+          ${o.delivery.address ? `<span>${esc(o.delivery.address)}</span>` : ''}
+          ${o.delivery.notes ? `<span>${esc(o.delivery.notes)}</span>` : ''}</div></div>` : ''}
       ${orderPeople(o).map((nombre) => `
         <div class="tk-group-head" style="margin-top:10px"><span>${esc(nombre)}</span>
           <b>${money(o.items.filter((i) => itemPerson(i) === nombre).reduce((s, i) => s + i.price * i.qty, 0))}</b></div>
@@ -1226,6 +1298,9 @@ function kitchenCard(o) {
         <small>#${esc(o.folio)} · ${esc(o.createdTime)}${o.customer ? ' · ' + esc(o.customer) : ''}</small></div>
       <span class="timer ${timerCls}">${mins} min</span>
     </div>
+    ${o.delivery ? `<div class="entrega-aviso">${icon('bag', 15)}
+      <div><b>Para llevar${o.delivery.mode ? ' · ' + esc(o.delivery.mode) : ''}</b>
+        ${o.delivery.address ? `<span>${esc(o.delivery.address)}</span>` : ''}</div></div>` : ''}
     <div class="tc-progress">${listos} de ${o.items.length} productos listos</div>
 
     ${orderPeople(o).map((plato) => {
@@ -1316,6 +1391,7 @@ function renderCashier() {
         <div class="pr-main">
           <strong>${esc(o.table)}</strong>
           <small>#${esc(o.folio)} · ${esc(o.createdTime)} · ${orderPieces(o)} piezas${o.customer ? ' · ' + esc(o.customer) : ''}</small>
+          ${o.delivery ? `<small class="text-red">${esc(textoEntrega(o))}</small>` : ''}
         </div>
         <div style="display:flex;align-items:center;gap:14px">
           <span class="status ${orderStatus(o)}">${statusLabel(orderStatus(o))}</span>
@@ -1366,6 +1442,10 @@ function openPayment(oid) {
         <b>${money(total)}</b>
         <small>${orderPieces(o)} piezas${o.customer ? ' · ' + esc(o.customer) : ''}</small>
       </div>
+      ${o.delivery ? `<div class="entrega-aviso">${icon('bag', 15)}
+        <div><b>Para llevar · ${esc(o.delivery.mode || '')}</b>
+          ${o.delivery.phone ? `<span>Tel. ${esc(o.delivery.phone)}</span>` : ''}
+          ${o.delivery.address ? `<span>${esc(o.delivery.address)}</span>` : ''}</div></div>` : ''}
 
       <div class="pay-grid">
         <div>
@@ -2391,13 +2471,17 @@ function periodoElegido() {
 /** Una fila por comanda. */
 function exportVentas() {
   const [a, b, suf] = periodoElegido();
-  const rows = [['Fecha', 'Folio', 'Hora', 'Mesa', 'Cliente', 'Piezas', 'Total', 'Estado',
+  const rows = [['Fecha', 'Folio', 'Hora', 'Mesa', 'Cliente', 'Teléfono', 'Dirección', 'Entrega',
+                 'Piezas', 'Total', 'Estado',
                  'Forma de pago', 'Recibido', 'Cambio', 'Hora de cobro', 'Cobró', 'Levantó']];
   allOrders().filter((o) => enRango(o.date, a, b))
     .sort((x, y2) => (x.date + x.createdTime).localeCompare(y2.date + y2.createdTime))
     .forEach((o) => {
       const pg = o.payment || {};
-      rows.push([o.date, o.folio, o.createdTime, o.table, o.customer || '', orderPieces(o),
+      const en = o.delivery || {};
+      rows.push([o.date, o.folio, o.createdTime, o.table, o.customer || '',
+        en.phone || '', [en.address, en.notes].filter(Boolean).join(' — '), en.mode || '',
+        orderPieces(o),
         nExcel(orderTotal(o)), statusLabel(orderStatus(o)),
         o.paid ? (pg.method || 'Efectivo') : '', o.paid ? nExcel(pg.received) : '',
         o.paid ? nExcel(pg.change) : '', pg.time || '', pg.cashier || '', o.waiter || '']);

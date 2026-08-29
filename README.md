@@ -18,7 +18,9 @@ se guardan en el `localStorage` del navegador.
   al bajar por el historial.
 - Al tocarlo, lo primero es **elegir la mesa**: se ven todas con su estado (libre, u ocupada
   con su total). Si la mesa ya tiene comanda abierta, se abre esa para seguir agregándole.
-  “Para llevar” siempre levanta un pedido nuevo.
+  “Para llevar” siempre levanta un pedido nuevo y, antes de capturarlo, pide los
+  **datos de entrega**: nombre, teléfono, dirección, referencias y si pasan por él o va a
+  domicilio. Esa información viaja a cocina, a caja y al ticket, y sale en el reporte de ventas.
 - Ya adentro se buscan productos por nombre o categoría y se arma el ticket. Cada renglón
   admite nota para cocina (“sin cebolla”).
 - **Todo va por plato**: arriba del menú hay una barra de platos. Toda comanda empieza con
@@ -126,13 +128,14 @@ Dos cosas nada más:
 - Refresco — $35
 - Agua natural — $30
 
-## Accesos de prueba
+## Accesos de fábrica
 - Administrador: 1234
 - Mesera: 1111
 - Cocina: 2222
 - Caja: 3333
 
-Los PIN se cambian desde **Ajustes → Perfiles y accesos**.
+Ya no se muestran en la pantalla de acceso. Se consultan y se cambian desde
+**Ajustes → Perfiles y accesos**, entrando como Administrador.
 
 ## Cómo abrirlo
 1. Abre `index.html` directamente en el navegador, **o**

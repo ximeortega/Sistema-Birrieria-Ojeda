@@ -32,6 +32,8 @@ create table if not exists public.orders (
   items        jsonb not null default '[]'::jsonb,
   paid         boolean not null default false,
   payment      jsonb,
+  delivery     jsonb,          -- pedidos para llevar: nombre, teléfono, dirección
+
   updated_at   timestamptz not null default now()
 );
 

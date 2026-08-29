@@ -40,6 +40,7 @@ const Cloud = {
   desde: {},               // último updated_at visto por tabla
   latido: null,            // repaso periódico
   settingsSucio: false,    // hay configuración sin guardar
+  sinColumnaEntrega: false, // la base todavía no tiene orders.delivery
   realtimeOk: false,       // ¿el aviso instantáneo quedó conectado?
 };
 
@@ -209,6 +210,7 @@ const filaAOrden = (r) => ({
   id: r.id, folio: r.folio, date: r.date, table: r.table_name, customer: r.customer || '',
   createdAt: r.created_at, createdTime: r.created_time, waiter: r.waiter,
   items: r.items || [], paid: !!r.paid, payment: r.payment || undefined,
+  delivery: r.delivery || null,
 });
 const filaAGasto = (r) => ({
   id: r.id, date: r.date, time: r.time, category: r.category, description: r.description,
@@ -402,11 +404,17 @@ async function cloudPullTable(tabla) {
 }
 
 /* ---------- Subir cambios ------------------------------------------------ */
-const ordenAFila = (o) => ({
-  id: o.id, folio: o.folio, date: o.date, table_name: o.table, customer: o.customer || '',
-  created_at: o.createdAt, created_time: o.createdTime, waiter: o.waiter || null,
-  items: o.items || [], paid: !!o.paid, payment: o.payment || null,
-});
+const ordenAFila = (o) => {
+  const fila = {
+    id: o.id, folio: o.folio, date: o.date, table_name: o.table, customer: o.customer || '',
+    created_at: o.createdAt, created_time: o.createdTime, waiter: o.waiter || null,
+    items: o.items || [], paid: !!o.paid, payment: o.payment || null,
+    delivery: o.delivery || null,
+  };
+  // Si la base todavía no tiene la columna de entrega, se manda sin ella.
+  if (Cloud.sinColumnaEntrega) delete fila.delivery;
+  return fila;
+};
 const gastoAFila = (e) => ({
   id: e.id, date: e.date, time: e.time, category: e.category, description: e.description,
   amount: Number(e.amount || 0), responsible: e.responsible, items: e.items || null,
@@ -450,6 +458,13 @@ async function cloudSyncArray(key, ahora) {
     Cloud.pendientes.delete(key);
     Cloud.error = null;
   } catch (e) {
+    // La columna de entrega es nueva: si la base aún no la tiene, se reintenta sin ella.
+    if (!Cloud.sinColumnaEntrega && /delivery/i.test(e.message) &&
+        /column|schema cache|PGRST204/i.test(e.message)) {
+      Cloud.sinColumnaEntrega = true;
+      Cloud.syncing = false;
+      return cloudSyncArray(key, ahora);
+    }
     // Se deja pendiente para volver a intentarlo; el espejo no se toca.
     Cloud.pendientes.add(key);
     Cloud.error = 'No se pudo guardar en la nube: ' + e.message;

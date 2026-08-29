@@ -1,5 +1,6 @@
 -- =========================================================================
---  Birriería Ojeda · Arreglo del tiempo real
+--  Birriería Ojeda · Actualización de la base
+--  (tiempo real + datos de entrega de los pedidos para llevar)
 --  Pega esto en Supabase → SQL Editor → Run. Tarda un segundo.
 --
 --  Por qué hace falta: con la seguridad por filas (RLS) encendida, Supabase
@@ -8,6 +9,11 @@
 --  precio los demás dispositivos seguían viendo el viejo.
 -- =========================================================================
 
+-- ---------- Datos de entrega de los pedidos para llevar ------------------
+-- Nombre, teléfono, dirección e indicaciones de cada pedido a domicilio.
+alter table public.orders add column if not exists delivery jsonb;
+
+-- ---------- Tiempo real ---------------------------------------------------
 do $$
 declare t text;
 begin

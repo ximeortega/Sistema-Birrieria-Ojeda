@@ -735,6 +735,25 @@ small{font-size:12px}
 .subtabs button:hover{color:var(--ink-2)}
 .subtabs button.on{background:var(--surface);color:var(--brand-ink);box-shadow:var(--sh-xs)}
 
+.entrega-aviso{
+  display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border-radius:var(--r-sm);
+  background:var(--amber-soft);border:1px solid var(--amber-line);color:var(--amber);
+  margin:10px 0 2px;
+}
+.entrega-aviso b{display:block;font-size:12.5px}
+.entrega-aviso span{display:block;font-size:12px;opacity:.9;margin-top:2px;line-height:1.4}
+.entrega-mini{
+  display:flex;gap:6px;align-items:center;margin-top:6px;font-size:11.5px;
+  color:var(--amber);font-weight:650;
+}
+.entrega-mini span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seg2{display:flex;gap:8px}
+.seg2 button{
+  flex:1;padding:12px 10px;border-radius:var(--r-sm);border:1.5px solid var(--line);
+  background:var(--surface);font-size:13.5px;font-weight:700;color:var(--ink-2);transition:.14s;
+}
+.seg2 button.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-ink)}
+
 .tab-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
 .tab-tag{
   font-size:10.5px;font-weight:700;padding:3px 7px;border-radius:6px;
