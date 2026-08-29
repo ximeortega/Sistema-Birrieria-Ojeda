@@ -324,22 +324,46 @@ function pickRole(id) { loginRole = id; loginPin = ''; renderLogin(); }
 function pinPress(n) { if (loginPin.length < 4) loginPin += n; renderLogin(); if (loginPin.length === 4) setTimeout(tryLogin, 120); }
 function pinClear() { loginPin = loginPin.slice(0, -1); renderLogin(); }
 
-function tryLogin() {
+/* La sesión se guarda en este dispositivo para no pedir el PIN cada vez que
+   se recarga la página. Es local: nunca viaja a la nube. */
+const SESION_KEY = 'bo_sesion';
+function guardarSesion(role) { try { localStorage.setItem(SESION_KEY, role); } catch {} }
+function borrarSesion() { try { localStorage.removeItem(SESION_KEY); } catch {} }
+function leerSesion() {
+  try {
+    const role = localStorage.getItem(SESION_KEY);
+    return role && getUsers()[role] ? role : null;
+  } catch { return null; }
+}
+
+/** Abre la app con un perfil, venga del PIN o de una sesión ya guardada. */
+function abrirSesion(role, saludar) {
   const users = getUsers();
-  if (users[loginRole].pin !== loginPin) { toast('PIN incorrecto', 'err'); loginPin = ''; renderLogin(); return; }
-  session = { role: loginRole, label: users[loginRole].label };
-  loginPin = ''; renderLogin();
+  if (!users[role] || !navOf(role).length) return false;
+  session = { role, label: users[role].label };
+  guardarSesion(role);
+
   $('#loginView').classList.add('hidden');
   $('#cloudView').classList.add('hidden');
   $('#appView').classList.remove('hidden');
   $('#userRoleLabel').textContent = session.label;
   $('#userAvatar').textContent = session.label[0];
   applyBranding();
-  go(navOf(session.role)[0][0]);
-  toast('Bienvenido, ' + session.label, 'ok');
+  go(navOf(role)[0][0]);
+  if (saludar) toast('Bienvenido, ' + session.label, 'ok');
+  return true;
+}
+
+function tryLogin() {
+  const users = getUsers();
+  if (users[loginRole].pin !== loginPin) { toast('PIN incorrecto', 'err'); loginPin = ''; renderLogin(); return; }
+  loginPin = ''; renderLogin();
+  abrirSesion(loginRole, true);
 }
 function logout() {
-  session = null; closeModal(); closeSheet();
+  session = null;
+  borrarSesion();
+  closeModal(); closeSheet();
   $('#appView').classList.add('hidden');
   mostrarLogin();
 }
@@ -2470,7 +2494,10 @@ async function arrancar() {
   sembrarDefaults();
   migrarInicio();
   applyBranding();
-  mostrarLogin();
+
+  // Si este equipo ya había entrado, se retoma el perfil sin volver a pedir el PIN.
+  const recordado = leerSesion();
+  if (!recordado || !abrirSesion(recordado, false)) mostrarLogin();
 
   try { await cloudInit(); }
   catch (e) { Cloud.error = e.message; }
@@ -2480,7 +2507,8 @@ async function arrancar() {
   migrarInicio();
   applyBranding();
   actualizarEstadoNube();
-  if (!session) mostrarLogin();   // si aún no entra nadie, se refresca el login
+  if (session) refresh();          // se redibuja con lo que llegó de la nube
+  else mostrarLogin();
 }
 
 /**
