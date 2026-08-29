@@ -21,6 +21,10 @@ se guardan en el `localStorage` del navegador.
   “Para llevar” siempre levanta un pedido nuevo y, antes de capturarlo, pide los
   **datos de entrega**: nombre, teléfono, dirección, referencias y si pasan por él o va a
   domicilio. Esa información viaja a cocina, a caja y al ticket, y sale en el reporte de ventas.
+- **Servicio a domicilio**: al elegir esa opción se abre su apartado con el **costo del envío**,
+  la hora aproximada y quién lo lleva. El envío **se suma al total** y se cobra en caja como
+  parte de la cuenta; en el corte aparece como su propio renglón, separado de los productos.
+  Un envío a domicilio no se guarda sin dirección.
 - Ya adentro se buscan productos por nombre o categoría y se arma el ticket. Cada renglón
   admite nota para cocina (“sin cebolla”).
 - **Todo va por plato**: arriba del menú hay una barra de platos. Toda comanda empieza con

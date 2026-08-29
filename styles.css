@@ -755,6 +755,14 @@ small{font-size:12px}
   color:var(--amber);font-weight:650;
 }
 .entrega-mini span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bloque-domicilio{
+  border:1px solid var(--amber-line);background:var(--amber-soft);
+  border-radius:var(--r);padding:14px;margin-top:4px;
+}
+.bloque-domicilio .lbl{display:flex;align-items:center;gap:7px;color:var(--amber)}
+.bloque-domicilio .total-line{border-top-color:var(--amber-line)}
+.bloque-domicilio .total-line b{color:var(--amber)}
+
 .seg2{display:flex;gap:8px}
 .seg2 button{
   flex:1;padding:12px 10px;border-radius:var(--r-sm);border:1.5px solid var(--line);

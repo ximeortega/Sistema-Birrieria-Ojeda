@@ -206,7 +206,10 @@ const TITLES = {
 const allOrders   = () => DB.get('orders', []);
 const dayOrders   = (k = todayKey()) => allOrders().filter((o) => o.date === k);
 const dayExpenses = (k = todayKey()) => DB.get('expenses', []).filter((e) => e.date === k);
-const orderTotal  = (o) => o.items.reduce((s, i) => s + i.price * i.qty, 0);
+const envioDe     = (o) => Number((o && o.delivery && o.delivery.fee) || 0);
+const orderItems$ = (o) => o.items.reduce((s, i) => s + i.price * i.qty, 0);
+/** Lo que se cobra: los productos más el envío, si es a domicilio. */
+const orderTotal  = (o) => orderItems$(o) + envioDe(o);
 const orderPieces = (o) => o.items.reduce((s, i) => s + i.qty, 0);
 /** Platos de una comanda. Siempre hay al menos uno; nunca se usa "General". */
 const orderPeople = (o) => [...new Set(o.items.map((i) => i.person || 'Plato 1'))];
@@ -248,6 +251,14 @@ function topProducts(orders, limit = 5) {
     map[i.name].qty += i.qty;
     map[i.name].amount += i.qty * i.price;
   }));
+  // El envío no es un producto, pero sí es dinero cobrado: va como renglón aparte.
+  const envios = orders.filter((o) => envioDe(o));
+  if (envios.length) {
+    map['Servicio a domicilio'] = {
+      qty: envios.length,
+      amount: envios.reduce((t, o) => t + envioDe(o), 0),
+    };
+  }
   return Object.entries(map)
     .map(([name, v]) => ({ name, ...v }))
     .sort((a, b) => b.amount - a.amount)
@@ -894,7 +905,24 @@ function pedirDatosEntrega(alEmpezar) {
         <div class="seg2" id="enTipo">
           ${['Pasan por él', 'A domicilio'].map((t) => `
             <button class="${(d.mode || 'Pasan por él') === t ? 'on' : ''}" data-modo="${t}"
-              onclick="$$('#enTipo button').forEach(b=>b.classList.remove('on')); this.classList.add('on')">${t}</button>`).join('')}
+              onclick="elegirModoEntrega(this)">${t}</button>`).join('')}
+        </div>
+      </div>
+
+      <div id="enDomicilio" class="bloque-domicilio ${(d.mode || 'Pasan por él') === 'A domicilio' ? '' : 'hidden'}">
+        <p class="lbl" style="margin-bottom:10px">${icon('bag', 15)} Servicio a domicilio</p>
+        <div class="field-grid two">
+          <div class="field"><label>Costo del envío</label>
+            <input id="enCosto" type="number" inputmode="numeric" min="0" placeholder="$0"
+                   value="${d.fee != null ? d.fee : ''}" oninput="previoEnvio()"></div>
+          <div class="field"><label>Hora aproximada <i class="opt">opcional</i></label>
+            <input id="enHora" placeholder="Ej. 8:30 pm" value="${esc(d.eta || '')}"></div>
+        </div>
+        <div class="field" style="margin-top:12px"><label>¿Quién lo lleva? <i class="opt">opcional</i></label>
+          <input id="enRepartidor" placeholder="Nombre de quien reparte" value="${esc(d.courier || '')}"></div>
+        <div class="total-line" style="margin-top:12px">
+          <span>Productos ${money(draft.items.reduce((t, i) => t + i.price * i.qty, 0))} + envío</span>
+          <b id="enTotal">${money(draft.items.reduce((t, i) => t + i.price * i.qty, 0) + Number(d.fee || 0))}</b>
         </div>
       </div>
     </div>
@@ -906,18 +934,41 @@ function pedirDatosEntrega(alEmpezar) {
     </div>`);
 }
 
+/** Al cambiar de modo se muestra u oculta el apartado de domicilio. */
+function elegirModoEntrega(btn) {
+  $$('#enTipo button').forEach((b) => b.classList.remove('on'));
+  btn.classList.add('on');
+  $('#enDomicilio').classList.toggle('hidden', btn.dataset.modo !== 'A domicilio');
+  previoEnvio();
+}
+/** Actualiza el total mientras se escribe el costo del envío. */
+function previoEnvio() {
+  const el = $('#enTotal');
+  if (!el) return;
+  const productos = draft.items.reduce((t, i) => t + i.price * i.qty, 0);
+  el.textContent = money(productos + Number(($('#enCosto') || {}).value || 0));
+}
+
 function guardarDatosEntrega(alEmpezar) {
   const nombre = $('#enNombre').value.trim();
   if (!nombre) { toast('Ponle al menos un nombre al pedido', 'err'); return; }
   const activo = [...$$('#enTipo button')].find((b) => b.classList.contains('on'));
+
+  const modo = activo ? activo.dataset.modo : 'Pasan por él';
+  const aDomicilio = modo === 'A domicilio';
 
   draft.customer = nombre;
   draft.delivery = {
     phone:   $('#enTel').value.trim(),
     address: $('#enDir').value.trim(),
     notes:   $('#enRef').value.trim(),
-    mode:    activo ? activo.dataset.modo : 'Pasan por él',
+    mode:    modo,
+    // Lo del domicilio solo se guarda si aplica.
+    fee:      aDomicilio ? Number($('#enCosto').value || 0) : 0,
+    eta:      aDomicilio ? $('#enHora').value.trim() : '',
+    courier:  aDomicilio ? $('#enRepartidor').value.trim() : '',
   };
+  if (aDomicilio && !draft.delivery.address) { toast('Un envío a domicilio necesita dirección', 'err'); return; }
   closeModal();
   if (alEmpezar) openBuilder();
   else renderTicket();
@@ -927,7 +978,8 @@ function guardarDatosEntrega(alEmpezar) {
 function textoEntrega(o) {
   const d = o.delivery;
   if (!d) return '';
-  return [d.mode, d.phone, d.address, d.notes].filter(Boolean).join(' · ');
+  const envio = envioDe(o) ? 'envío ' + money(envioDe(o)) : '';
+  return [d.mode, d.phone, d.address, d.notes, envio].filter(Boolean).join(' · ');
 }
 
 function editOrder(id) {
@@ -989,6 +1041,7 @@ function openBuilder() {
             <div class="tk-head">${icon('receipt', 18)}<b>Ticket</b><span class="tk-count" id="tkCount">0</span></div>
             <div class="tk-body" id="tkBody"></div>
             <div class="tk-foot">
+              <div class="tk-line hidden" id="tkEnvio"></div>
               <div class="tk-line"><span id="tkPieces">0 piezas</span><span id="tkTable">${esc(draft.table)}</span></div>
               <div class="tk-total"><span>Total</span><b id="tkTotal">$0</b></div>
               <button class="btn btn-primary btn-lg full" onclick="saveOrder()">
@@ -1108,7 +1161,9 @@ function renderMenu() {
 function renderTicket() {
   const body = $('#tkBody');
   if (!body) return;
-  const total = draft.items.reduce((s, i) => s + i.price * i.qty, 0);
+  const productos = draft.items.reduce((s, i) => s + i.price * i.qty, 0);
+  const envio = Number((draft.delivery && draft.delivery.fee) || 0);
+  const total = productos + envio;
   const pieces = draft.items.reduce((s, i) => s + i.qty, 0);
   const fila = (i) => `
     <div class="ticket-row">
@@ -1140,6 +1195,11 @@ function renderTicket() {
     }).join('');
   }
 
+  const lineaEnvio = $('#tkEnvio');
+  if (lineaEnvio) {
+    lineaEnvio.classList.toggle('hidden', !envio);
+    if (envio) lineaEnvio.innerHTML = `<span>Servicio a domicilio</span><b>${money(envio)}</b>`;
+  }
   $('#tkTotal').textContent = money(total);
   $('#tkSumM').textContent = money(total);
   $('#tkPieces').textContent = pieces + (pieces === 1 ? ' pieza' : ' piezas');
@@ -1246,6 +1306,8 @@ function viewOrder(id) {
         <div class="tk-group-head" style="margin-top:10px"><span>${esc(nombre)}</span>
           <b>${money(o.items.filter((i) => itemPerson(i) === nombre).reduce((s, i) => s + i.price * i.qty, 0))}</b></div>
         ${o.items.filter((i) => itemPerson(i) === nombre).map((i) => `<div class="kv"><span>${i.qty} × ${esc(i.name)}${i.note ? `<br><small class="muted">${esc(i.note)}</small>` : ''}</span><b>${money(i.qty * i.price)}</b></div>`).join('')}`).join('')}
+      ${envioDe(o) ? `<div class="kv"><span>Productos</span><b>${money(orderItems$(o))}</b></div>
+        <div class="kv"><span>Servicio a domicilio</span><b>${money(envioDe(o))}</b></div>` : ''}
       <div class="total-line"><span>Total</span><b>${money(orderTotal(o))}</b></div>
       ${o.payment ? `<div class="kv"><span>Pago (${esc(o.payment.method)})</span><b>${money(o.payment.received)}</b></div>
         <div class="kv"><span>Cambio</span><b>${money(o.payment.change)}</b></div>
@@ -1288,6 +1350,8 @@ function mensajeComanda(o) {
     if (o.customer) L.push(`*Cliente:* ${o.customer}`);
     if (o.delivery) {
       if (o.delivery.mode) L.push(`*Entrega:* ${o.delivery.mode}`);
+      if (o.delivery.eta) L.push(`*Hora aprox.:* ${o.delivery.eta}`);
+      if (o.delivery.courier) L.push(`*Lo lleva:* ${o.delivery.courier}`);
       if (o.delivery.phone) L.push(`*Teléfono:* ${o.delivery.phone}`);
       if (o.delivery.address) L.push(`*Dirección:* ${o.delivery.address}`);
       if (o.delivery.notes) L.push(`*Referencias:* ${o.delivery.notes}`);
@@ -1306,6 +1370,11 @@ function mensajeComanda(o) {
     });
   });
 
+  if (envioDe(o)) {
+    L.push('');
+    L.push(`Productos — ${money(orderItems$(o))}`);
+    L.push(`Servicio a domicilio — ${money(envioDe(o))}`);
+  }
   L.push('');
   L.push(`*TOTAL: ${money(orderTotal(o))}*`);
   if (o.paid && o.payment) {
@@ -2583,7 +2652,7 @@ function periodoElegido() {
 function exportVentas() {
   const [a, b, suf] = periodoElegido();
   const rows = [['Fecha', 'Folio', 'Hora', 'Mesa', 'Cliente', 'Teléfono', 'Dirección', 'Entrega',
-                 'Piezas', 'Total', 'Estado',
+                 'Envío', 'Lo llevó', 'Piezas', 'Total', 'Estado',
                  'Forma de pago', 'Recibido', 'Cambio', 'Hora de cobro', 'Cobró', 'Levantó']];
   allOrders().filter((o) => enRango(o.date, a, b))
     .sort((x, y2) => (x.date + x.createdTime).localeCompare(y2.date + y2.createdTime))
@@ -2592,6 +2661,7 @@ function exportVentas() {
       const en = o.delivery || {};
       rows.push([o.date, o.folio, o.createdTime, o.table, o.customer || '',
         en.phone || '', [en.address, en.notes].filter(Boolean).join(' — '), en.mode || '',
+        envioDe(o) ? nExcel(envioDe(o)) : '', en.courier || '',
         orderPieces(o),
         nExcel(orderTotal(o)), statusLabel(orderStatus(o)),
         o.paid ? (pg.method || 'Efectivo') : '', o.paid ? nExcel(pg.received) : '',
