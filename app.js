@@ -2956,14 +2956,16 @@ function filasCortes(a, b) {
 /** Catálogo de reportes: mismo origen para Excel y para PDF. */
 const REPORTES = [
   { id:'corte',     nombre:'Corte del día',        icono:'wallet',  detalle:'Ventas, efectivo y diferencia de hoy' },
-  { id:'resumen',   nombre:'Resumen por día',      icono:'chart',   filas:filasResumen,   dinero:[4,5,6,7,8,9,10], detalle:'Una fila por día del periodo' },
+  { id:'resumen',   nombre:'Resumen por día',      icono:'chart',   filas:filasResumen,   dinero:[4,5,6,7,8,9,10],
+    pdfCols:[0,1,3,4,8,9], detalle:'Una fila por día del periodo' },
   { id:'ventas',    nombre:'Ventas por comanda',   icono:'receipt', filas:filasVentas,    dinero:[8,11,14,15],
     // El Excel lleva las 19 columnas; en papel solo caben las de lectura.
-    pdfCols:[0,1,2,3,4,10,11,12,13], detalle:'Cada comanda con su total y forma de pago' },
+    pdfCols:[0,1,3,4,10,11,12,13], detalle:'Cada comanda con su total y forma de pago' },
   { id:'productos', nombre:'Productos vendidos',   icono:'box',     filas:filasProductos, dinero:[2],              detalle:'Piezas e importe de cada producto' },
-  { id:'gastos',    nombre:'Gastos',               icono:'minus',   filas:filasGastos,    dinero:[5],              detalle:'Cada concepto con su responsable' },
+  { id:'gastos',    nombre:'Gastos',               icono:'minus',   filas:filasGastos,    dinero:[5],
+    pdfCols:[0,2,3,5,6], detalle:'Cada concepto con su responsable' },
   { id:'cortes',    nombre:'Cortes guardados',     icono:'check',   filas:filasCortes,    dinero:[2,3,4,5,6,7,8,9,10],
-    pdfCols:[0,1,2,5,6,8,9,10], detalle:'Historial de cierres con su diferencia' },
+    pdfCols:[0,1,2,5,6,9,10], detalle:'Historial de cierres con su diferencia' },
 ];
 
 let repSeleccion = ['corte', 'resumen', 'ventas', 'gastos'];
@@ -3042,7 +3044,8 @@ function tablaPDF(rows, dinero, cols) {
     const esTotal = String(f[0]).toUpperCase() === 'TOTAL';
     return `<tr class="${esTotal ? 'total' : ''}">${usar.map((c, i) => celda(f[c], i)).join('')}</tr>`;
   }).join('');
-  return `<table><thead><tr>${usar.map((c) => `<th>${esc(rows[0][c])}</th>`).join('')}</tr></thead><tbody>${cuerpo}</tbody></table>`;
+  const cab = usar.map((c, i) => `<th class="${esDinero.has(i) ? 'num' : ''}">${esc(rows[0][c])}</th>`).join('');
+  return `<table><thead><tr>${cab}</tr></thead><tbody>${cuerpo}</tbody></table>`;
 }
 
 /** Bloque especial del corte del día, con tarjetas de color. */
@@ -3081,7 +3084,7 @@ function documentoReporte(subtitulo, secciones) {
   html,body{max-width:100%;overflow-x:hidden}
   body{
     margin:0;padding:0;font-family:"Segoe UI",Arial,Helvetica,sans-serif;color:#16161a;
-    font-size:11px;line-height:1.4;
+    font-size:10.5px;line-height:1.45;
     -webkit-print-color-adjust:exact;print-color-adjust:exact;
   }
   /* Si el reporte se ve en pantalla (celular), se lee cómodo y con márgenes. */
@@ -3100,32 +3103,43 @@ function documentoReporte(subtitulo, secciones) {
   .portada .fecha{margin-top:12px;font-size:10.5px;opacity:.7}
   section{margin-bottom:20px;page-break-inside:auto}
   h2{
-    font-size:13px;margin:0 0 9px;padding:7px 11px;border-radius:7px;
+    font-size:13px;margin:16px 0 9px;padding:7px 11px;border-radius:7px;
     background:#fdf1f2;color:#8c111c;border-left:4px solid #a51420;
+    page-break-after:avoid;
   }
-  table{width:100%;border-collapse:collapse;margin-bottom:6px;table-layout:fixed}
+  section:first-of-type h2{margin-top:0}
+  /* Ancho automático: con reparto fijo, las columnas de texto se apretaban
+     y las palabras se encimaban. */
+  table{width:100%;border-collapse:collapse;margin-bottom:6px;table-layout:auto}
   th{
-    background:#2b2b31;color:#fff;font-size:9px;text-transform:uppercase;
-    letter-spacing:.03em;padding:6px 6px;text-align:left;
+    background:#2b2b31;color:#fff;font-size:9.5px;text-transform:uppercase;
+    letter-spacing:.02em;padding:6px 7px;text-align:left;vertical-align:bottom;
   }
-  td{padding:5px 6px;border-bottom:1px solid #ececf0;word-break:break-word;overflow-wrap:anywhere}
-  th:first-child,td:first-child{width:auto}
+  td{
+    padding:5px 7px;border-bottom:1px solid #ececf0;vertical-align:top;
+    word-break:normal;overflow-wrap:break-word;hyphens:none;
+  }
+  /* Las columnas de dinero toman lo mínimo y no se parten. */
+  th.num,td.num{text-align:right;white-space:nowrap;width:1%;font-variant-numeric:tabular-nums}
   thead{display:table-header-group}   /* el encabezado se repite en cada hoja */
   tr{page-break-inside:avoid}
   tbody tr:nth-child(even){background:#fafafc}
-  td.num,th:last-child{text-align:right;font-variant-numeric:tabular-nums}
+
   tr.total td{background:#fdf1f2;font-weight:800;color:#8c111c;border-top:2px solid #a51420}
   .tarjetas{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
   @media screen and (max-width:560px){
     .tarjeta{min-width:calc(50% - 4px)}
     th,td{font-size:11px;padding:6px 5px}
     .portada h1{font-size:19px}
+    /* En celular las tablas anchas se deslizan en vez de encimarse. */
+    section{overflow-x:auto}
+    table{min-width:480px}
   }
   .tarjeta{
     flex:1;border:1px solid #e7e7ec;border-radius:9px;padding:10px 12px;background:#fff;
   }
-  .tarjeta span{display:block;font-size:9.5px;color:#74747e}
-  .tarjeta b{display:block;font-size:16px;margin-top:3px}
+  .tarjeta span{display:block;font-size:9.5px;color:#74747e;line-height:1.3}
+  .tarjeta b{display:block;font-size:15px;margin-top:4px;white-space:nowrap}
   .tarjeta.oscura{background:#16161a;border-color:#16161a;color:#fff}
   .tarjeta.oscura span{color:#b9b9c4}
   .tarjeta.roja b{color:#8c111c}
