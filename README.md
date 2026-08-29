@@ -65,7 +65,9 @@ estados, *en cocina* y *lista para cobrar*.
   con teclado numérico en pantalla (no hace falta teclado físico en la tablet),
   botones de billete rápido y el cambio a devolver en un recuadro verde.
   Si falta dinero, el recuadro se pone rojo y el botón de cobrar se bloquea.
-- Bitácora de los cobros del día con su ticket imprimible.
+- Bitácora de los cobros del día con su **ticket imprimible**: sale del ancho de una impresora
+  de caja (80 mm), con el negocio, la comanda separada por plato, el desglose del envío si lo
+  hubo, la forma de pago y el mensaje de despedida. Se imprime solo el ticket, no la pantalla.
 
 ### Gastos
 Cuatro campos y ya:

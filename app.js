@@ -1317,7 +1317,7 @@ function viewOrder(id) {
     </div>
     <div class="modal-foot">
       <button class="btn btn-wa" onclick="closeModal(); enviarWhatsApp('${o.id}')">${icon('users', 16)} WhatsApp</button>
-      <button class="btn btn-line" onclick="window.print()">${icon('print', 16)} Imprimir</button>
+      <button class="btn btn-line" onclick="imprimirTicket('${o.id}')">${icon('print', 16)} Imprimir</button>
       <button class="btn btn-primary" onclick="closeModal()">Cerrar</button>
     </div>`);
 }
@@ -1430,6 +1430,151 @@ function copiarComanda() {
   } else {
     toast('No se pudo copiar', 'err');
   }
+}
+
+/* =========================================================================
+   Ticket impreso
+   -------------------------------------------------------------------------
+   Antes se mandaba a imprimir la pantalla completa y salía la ventana encima
+   del sistema. Ahora se arma un ticket angosto, del ancho de las impresoras
+   de caja (80 mm), y se manda solo eso.
+   ========================================================================= */
+/** Imprime un corte guardado como hoja, no la pantalla completa. */
+function imprimirCorte(id) {
+  const x = DB.get('cuts', []).find((c) => c.id === id);
+  if (!x) return;
+  const productos = x.products || topProducts(dayOrders(x.date), 500);
+  const gastos = x.expenseList || dayExpenses(x.date);
+  // Se reutiliza el mismo documento de los reportes, con el detalle de ese corte.
+  const filas = [
+    ['Concepto', 'Importe'],
+    ['Ventas cobradas', x.sales],
+    ['— en efectivo', x.cashSales != null ? x.cashSales : x.sales],
+    ['— tarjeta y transferencia', x.cardSales || 0],
+    ['Sin cobrar', x.pending || 0],
+    ['Gastos', x.expenses],
+    ['Utilidad', x.utility],
+    ['Fondo inicial', x.initial],
+    ['Efectivo que debe haber', x.expected],
+    ['Efectivo contado', x.counted],
+    ['Diferencia', x.difference],
+  ];
+  const html = documentoReporte(
+    'Corte del ' + cutDayLabel(x) + ' · ' + x.time,
+    `<section><h2>Cierre de caja</h2>${tablaPDF(filas, [1])}</section>
+     <section><h2>Venta por producto</h2>${tablaPDF(
+        [['Producto', 'Piezas', 'Importe']].concat(productos.map((p2) => [p2.name, p2.qty, p2.amount])), [2])}</section>
+     <section><h2>Gastos del día</h2>${tablaPDF(
+        [['Hora', 'Categoría', 'Descripción', 'Responsable', 'Importe']]
+          .concat(gastos.map((g) => [g.time, g.category || 'Otros', g.description, g.responsible, g.amount])), [4])}</section>`);
+  imprimirDocumento(html, 'corte-' + x.date);
+}
+
+function imprimirTicket(oid) {
+  const o = allOrders().find((x) => x.id === oid);
+  if (!o) return;
+
+  const linea = (izq, der, clase) =>
+    `<div class="ln ${clase || ''}"><span>${izq}</span><b>${der}</b></div>`;
+
+  const platos = orderPeople(o);
+  const cuerpo = platos.map((plato) => {
+    const suyos = o.items.filter((i) => itemPerson(i) === plato);
+    if (!suyos.length) return '';
+    return (platos.length > 1 ? `<div class="plato">${esc(plato)}</div>` : '') +
+      suyos.map((i) => `
+        <div class="art">
+          <span class="cant">${i.qty}</span>
+          <span class="nom">${esc(i.name)}${i.note ? `<em>${esc(i.note)}</em>` : ''}</span>
+          <b>${money(i.price * i.qty)}</b>
+        </div>`).join('');
+  }).join('');
+
+  const en = o.delivery;
+  const pg = o.payment;
+
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
+<title>Ticket ${esc(o.folio)}</title>
+<style>
+  @page{ size:80mm auto; margin:4mm; }
+  *{box-sizing:border-box}
+  body{
+    margin:0;width:72mm;font-family:"Segoe UI",Arial,Helvetica,sans-serif;
+    font-size:11.5px;line-height:1.35;color:#000;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;
+  }
+  @media screen{
+    body{width:auto;max-width:320px;margin:18px auto;padding:16px;background:#fff;
+         box-shadow:0 4px 24px rgba(0,0,0,.12);border-radius:10px}
+  }
+  .cab{text-align:center;margin-bottom:8px}
+  .cab h1{margin:0;font-size:15px;letter-spacing:.08em;text-transform:uppercase}
+  .cab p{margin:2px 0 0;font-size:10px}
+  .sep{border-top:1px dashed #000;margin:7px 0}
+  .datos{font-size:10.5px}
+  .datos div{display:flex;justify-content:space-between;gap:8px}
+  .plato{font-size:10px;font-weight:800;text-transform:uppercase;margin:6px 0 2px;letter-spacing:.04em}
+  .art{display:flex;gap:6px;align-items:flex-start;margin-bottom:3px}
+  .art .cant{min-width:16px;font-weight:800}
+  .art .nom{flex:1;word-break:break-word}
+  .art .nom em{display:block;font-style:normal;font-size:9.5px;opacity:.75}
+  .art b{white-space:nowrap;font-variant-numeric:tabular-nums}
+  .ln{display:flex;justify-content:space-between;gap:8px;margin-bottom:2px}
+  .ln b{font-variant-numeric:tabular-nums}
+  .ln.total{font-size:15px;font-weight:800;margin:5px 0}
+  .entrega{font-size:10.5px;margin-top:6px}
+  .entrega b{display:block;text-transform:uppercase;font-size:10px;letter-spacing:.04em}
+  .pie{text-align:center;margin-top:10px;font-size:10px}
+  .pie .gracias{font-weight:800;font-size:12px;margin-bottom:2px}
+  .pie .lema{font-size:10.5px;margin-bottom:5px}
+  .pie .chico{font-size:9.5px;opacity:.7}
+</style></head><body>
+
+  <div class="cab">
+    <h1>${esc(bizName())}</h1>
+    <p>Ticket #${esc(o.folio)}</p>
+  </div>
+
+  <div class="sep"></div>
+  <div class="datos">
+    <div><span>${esc(o.table)}</span><span>${esc(o.createdTime)}</span></div>
+    <div><span>${esc(dateText(new Date(o.createdAt)))}</span></div>
+    ${o.waiter ? `<div><span>Atendió</span><span>${esc(o.waiter)}</span></div>` : ''}
+    ${o.customer ? `<div><span>Cliente</span><span>${esc(o.customer)}</span></div>` : ''}
+  </div>
+
+  <div class="sep"></div>
+  ${cuerpo}
+  <div class="sep"></div>
+
+  ${envioDe(o) ? linea('Productos', money(orderItems$(o))) +
+                 linea('Servicio a domicilio', money(envioDe(o))) : ''}
+  ${linea('TOTAL', money(orderTotal(o)), 'total')}
+
+  ${pg ? `<div class="sep"></div>
+    ${linea(esc(pg.method), money(pg.received))}
+    ${pg.change > 0 ? linea('Cambio', money(pg.change)) : ''}
+    <div class="datos"><div><span>Cobró</span><span>${esc(pg.cashier || '')} · ${esc(pg.time || '')}</span></div></div>`
+   : `<div class="sep"></div><div class="ln"><span>Pendiente de cobro</span><b></b></div>`}
+
+  ${en ? `<div class="sep"></div>
+    <div class="entrega">
+      <b>Para llevar${en.mode ? ' · ' + esc(en.mode) : ''}</b>
+      ${en.phone ? `<div>Tel. ${esc(en.phone)}</div>` : ''}
+      ${en.address ? `<div>${esc(en.address)}</div>` : ''}
+      ${en.notes ? `<div>${esc(en.notes)}</div>` : ''}
+      ${en.eta ? `<div>Hora aprox. ${esc(en.eta)}</div>` : ''}
+    </div>` : ''}
+
+  <div class="sep"></div>
+  <div class="pie">
+    <div class="gracias">¡Gracias por su preferencia!</div>
+    <div class="lema">En ${esc(bizName())} es un placer atenderte</div>
+    <div class="chico">${orderPieces(o)} ${orderPieces(o) === 1 ? 'pieza' : 'piezas'} · impreso ${esc(hourMin())}</div>
+  </div>
+</body></html>`;
+
+  imprimirDocumento(html, 'ticket-' + o.folio);
 }
 
 /* =========================================================================
@@ -1979,7 +2124,7 @@ function viewCut(id) {
       </div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-line" onclick="window.print()">${icon('print', 16)} Imprimir</button>
+      <button class="btn btn-line" onclick="imprimirCorte('${x.id}')">${icon('print', 16)} Imprimir</button>
       <button class="btn btn-primary" onclick="closeModal()">Cerrar</button>
     </div>`, true);
 }
@@ -2914,19 +3059,9 @@ function corteEnPDF() {
     </table>`;
 }
 
-function descargarPDF() {
-  if (!repSeleccion.length) { toast('Elige al menos un reporte', 'err'); return; }
-  const kind = $('#repRange').value;
-  const [a, b] = rangoDe(kind);
-  const elegidos = REPORTES.filter((r) => repSeleccion.includes(r.id));
-
-  const secciones = elegidos.map((r) => `
-    <section>
-      <h2>${esc(r.nombre)}</h2>
-      ${r.id === 'corte' ? corteEnPDF() : tablaPDF(r.filas(a, b), r.dinero, r.pdfCols)}
-    </section>`).join('');
-
-  const doc = `<!doctype html><html lang="es"><head><meta charset="utf-8">
+/** Plantilla del documento imprimible: portada, secciones y pie. */
+function documentoReporte(subtitulo, secciones) {
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <title>${esc(bizName())} · Reporte</title>
 <style>
   @page { size:A4; margin:12mm 10mm; }
@@ -2989,14 +3124,28 @@ function descargarPDF() {
   <div class="hoja">
   <div class="portada">
     <h1>${esc(bizName())}</h1>
-    <p>${esc(periodoTexto(kind, a, b))}</p>
+    <p>${esc(subtitulo)}</p>
     <div class="fecha">Generado el ${esc(dateText())} a las ${esc(hourMin())}</div>
   </div>
   ${secciones}
   <div class="pie">${esc(bizName())} · Sistema de operación · Hecho por Ximena Ortega</div>
   </div>
 </body></html>`;
+}
 
+function descargarPDF() {
+  if (!repSeleccion.length) { toast('Elige al menos un reporte', 'err'); return; }
+  const kind = $('#repRange').value;
+  const [a, b] = rangoDe(kind);
+  const elegidos = REPORTES.filter((r) => repSeleccion.includes(r.id));
+
+  const secciones = elegidos.map((r) => `
+    <section>
+      <h2>${esc(r.nombre)}</h2>
+      ${r.id === 'corte' ? corteEnPDF() : tablaPDF(r.filas(a, b), r.dinero, r.pdfCols)}
+    </section>`).join('');
+
+  const doc = documentoReporte(periodoTexto(kind, a, b), secciones);
   imprimirDocumento(doc, archivo('reporte', rangoDe(kind)[2]));
 }
 
