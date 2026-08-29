@@ -2991,24 +2991,41 @@ function marcarTodosReportes(todos) {
 }
 
 /* ---------- Descargar en Excel ------------------------------------------ */
+/**
+ * Un solo archivo de Excel con una hoja por reporte, con encabezados de color,
+ * totales resaltados e importes como moneda de verdad (no texto).
+ */
 function descargarExcel() {
   if (!repSeleccion.length) { toast('Elige al menos un reporte', 'err'); return; }
   const kind = $('#repRange').value;
   const [a, b, suf] = rangoDe(kind);
-  let hechos = 0;
 
+  const hojas = [];
   REPORTES.filter((r) => repSeleccion.includes(r.id)).forEach((r) => {
-    const rows = r.id === 'corte' ? filasCorteDelDia() : r.filas(a, b);
-    // Excel necesita los números con coma decimal.
-    const listas = rows.map((fila, iF) => fila.map((v, iC) => {
-      if (iF === 0 || !r.dinero || !r.dinero.includes(iC)) return v;
-      return v === '' || v === null || v === undefined ? '' : nExcel(v);
-    }));
-    if (downloadCSV(archivo(r.id, suf), listas)) hechos++;
+    const filas = r.id === 'corte' ? filasCorteDelDia() : r.filas(a, b);
+    if (filas.length <= 1) return;                 // sin movimientos, no se agrega la hoja
+    hojas.push({ nombre:r.nombre, filas, dinero:r.id === 'corte' ? [1] : r.dinero, anchos:anchosDe(filas) });
   });
 
-  toast(hechos ? `${hechos} archivo${hechos === 1 ? '' : 's'} descargado${hechos === 1 ? '' : 's'}` : 'No hay información en ese periodo',
-        hechos ? 'ok' : 'err');
+  if (!hojas.length) { toast('No hay información en ese periodo', 'err'); return; }
+
+  try {
+    const bytes = construirXLSX(hojas);
+    const blob = new Blob([bytes], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const el = document.createElement('a');
+    el.href = URL.createObjectURL(blob);
+    el.download = archivo('reporte', suf) + '.xlsx';
+    document.body.appendChild(el);
+    el.click();
+    el.remove();
+    setTimeout(() => URL.revokeObjectURL(el.href), 1000);
+    toast(`Excel con ${hojas.length} hoja${hojas.length === 1 ? '' : 's'}`, 'ok');
+  } catch (e) {
+    // Si algo falla, al menos se entrega la información en CSV.
+    let n = 0;
+    hojas.forEach((h) => { if (downloadCSV(archivo(h.nombre.toLowerCase().replace(/[^a-z0-9]+/g, '-'), suf), h.filas)) n++; });
+    toast(n ? 'Se descargó en CSV' : 'No se pudo generar el archivo', n ? 'ok' : 'err');
+  }
 }
 
 /** El corte de hoy, en dos columnas. */

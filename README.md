@@ -116,9 +116,11 @@ Dos cosas nada más:
   - **Gastos** — fecha, categoría, descripción, cantidad y responsable.
   - **Cortes guardados** — con el efectivo esperado, el contado y la diferencia.
 
-  En **Excel** baja un archivo por reporte. En **PDF** sale un solo documento con los colores
-  del negocio, encabezado, tablas y totales resaltados; el navegador abre el diálogo de
-  impresión y ahí se elige *Guardar como PDF*.
+  En **Excel** baja **un solo archivo** `.xlsx` con **una hoja por reporte**: encabezados en el
+  rojo del negocio, fila de totales resaltada, importes con formato de moneda (sumables, no
+  texto), columnas al ancho del contenido, filtros y encabezado fijo al desplazar.
+  En **PDF** sale un solo documento con portada, secciones y tablas con los mismos colores;
+  el navegador abre el diálogo de impresión y ahí se elige *Guardar como PDF*.
 - **Zona de riesgo**: borrar lo de días anteriores (deja solo hoy, útil para sacar las
   pruebas), borrar las comandas y gastos de hoy, o borrar toda la información. Lo que se borra
   aquí se borra también en la nube, así que los demás equipos quedan igual.
