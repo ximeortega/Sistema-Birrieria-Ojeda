@@ -28,7 +28,21 @@ const Cloud = {
   syncing: false,        // hay una subida en curso
   error: null,           // último problema, para mostrarlo en Ajustes
   channels: [],
+  /**
+   * Espejo de lo que la nube ya tiene confirmado: clave → Map(id → json).
+   * Hace falta porque la app trabaja sobre el mismo arreglo que guarda: modifica
+   * una comanda y llama a DB.set con ese mismo arreglo. Comparando contra el
+   * espejo se sabe de verdad qué cambió.
+   */
+  espejo: {},
+  pendientes: new Set(),   // claves que no se pudieron subir
+  reintento: null,
 };
+
+/** Marca lo que ya está confirmado en la nube. */
+function marcarSincronizado(key, filas) {
+  Cloud.espejo[key] = new Map((filas || []).map((x) => [x.id, JSON.stringify(x)]));
+}
 
 /* ---------- Configuración guardada en este dispositivo ------------------ */
 /**
@@ -138,6 +152,8 @@ async function cloudSignOut() {
   cloudStopListening();
   Cloud.session = null;
   Cloud.online = false;
+  Cloud.espejo = {};
+  Cloud.pendientes.clear();
 }
 
 function traducirError(msg) {
@@ -181,10 +197,13 @@ async function cloudPullAll() {
     const fallo = [pr, or_, ex, cu, se].find((r) => r.error);
     if (fallo) throw new Error(fallo.error.message);
 
-    if (pr.data)  stateSet('products', pr.data.map(filaAProducto));
-    if (or_.data) stateSet('orders',   or_.data.map(filaAOrden));
-    if (ex.data)  stateSet('expenses', ex.data.map(filaAGasto));
-    if (cu.data)  stateSet('cuts',     cu.data.map(filaACorte));
+    const bajado = {
+      products: (pr.data || []).map(filaAProducto),
+      orders:   (or_.data || []).map(filaAOrden),
+      expenses: (ex.data || []).map(filaAGasto),
+      cuts:     (cu.data || []).map(filaACorte),
+    };
+    Object.keys(bajado).forEach((k) => { stateSet(k, bajado[k]); marcarSincronizado(k, bajado[k]); });
 
     const ajustes = (se.data && se.data.data) || {};
     SETTING_KEYS.forEach((k) => { if (ajustes[k] !== undefined) stateSet(k, ajustes[k]); });
@@ -208,7 +227,9 @@ async function cloudPullTable(tabla) {
     const { data, error } = await c.from(tabla).select('*');
     if (error) throw new Error(error.message);
     const mapa = { products: filaAProducto, orders: filaAOrden, expenses: filaAGasto, cuts: filaACorte };
-    stateSet(tabla, (data || []).map(mapa[tabla]));
+    const filas = (data || []).map(mapa[tabla]);
+    stateSet(tabla, filas);
+    marcarSincronizado(tabla, filas);
   } catch (e) {
     Cloud.error = 'No se pudo actualizar ' + tabla + ': ' + e.message;
   }
@@ -232,34 +253,56 @@ const corteAFila = (c) => ({ id: c.id, date: c.date, time: c.time, data: c });
 const A_FILA = { products: productoAFila, orders: ordenAFila, expenses: gastoAFila, cuts: corteAFila };
 
 /**
- * Compara el arreglo anterior con el nuevo y sube solo lo que cambió.
- * Así dos dispositivos pueden trabajar a la vez sin borrarse el trabajo:
- * cada comanda es una fila independiente.
+ * Sube solo lo que cambió respecto a lo que la nube ya tiene confirmado.
+ * Cada comanda es una fila, así que dos dispositivos pueden trabajar a la vez
+ * sin borrarse el trabajo.
  */
-async function cloudSyncArray(key, antes, ahora) {
+async function cloudSyncArray(key, ahora) {
   const c = Cloud.client;
+  const filas = ahora || [];
   if (!c || !Cloud.online) return;
 
-  const previos = new Map((antes || []).map((x) => [x.id, JSON.stringify(x)]));
-  const actuales = new Map((ahora || []).map((x) => [x.id, x]));
+  const confirmado = Cloud.espejo[key] || new Map();
+  const cambiados = filas.filter((x) => confirmado.get(x.id) !== JSON.stringify(x));
+  const vivos = new Set(filas.map((x) => x.id));
+  const borrados = [...confirmado.keys()].filter((id) => !vivos.has(id));
+  if (!cambiados.length && !borrados.length) return;
 
-  const cambiados = (ahora || []).filter((x) => previos.get(x.id) !== JSON.stringify(x));
-  const borrados = (antes || []).filter((x) => !actuales.has(x.id)).map((x) => x.id);
-
+  Cloud.syncing = true;
   try {
     if (cambiados.length) {
-      const filas = cambiados.map(A_FILA[key]);
-      const { error } = await c.from(key).upsert(filas, { onConflict: 'id' });
+      const { error } = await c.from(key).upsert(cambiados.map(A_FILA[key]), { onConflict: 'id' });
       if (error) throw new Error(error.message);
     }
     if (borrados.length) {
       const { error } = await c.from(key).delete().in('id', borrados);
       if (error) throw new Error(error.message);
     }
+    // Solo cuando el servidor confirmó se da por sincronizado.
+    marcarSincronizado(key, filas);
+    Cloud.pendientes.delete(key);
     Cloud.error = null;
   } catch (e) {
+    // Se deja pendiente para volver a intentarlo; el espejo no se toca.
+    Cloud.pendientes.add(key);
     Cloud.error = 'No se pudo guardar en la nube: ' + e.message;
+    programarReintento();
+  } finally {
+    Cloud.syncing = false;
+    if (typeof onCloudStatus === 'function') onCloudStatus();
   }
+}
+
+/** Vuelve a intentar lo que quedó pendiente, sin atosigar al servidor. */
+function programarReintento() {
+  if (Cloud.reintento || !Cloud.pendientes.size) return;
+  Cloud.reintento = setTimeout(async () => {
+    Cloud.reintento = null;
+    for (const key of [...Cloud.pendientes]) {
+      await cloudSyncArray(key, stateGet(key) || []);
+    }
+    if (Cloud.pendientes.size) programarReintento();
+  }, 6000);
 }
 
 /** Todas las claves de configuración van juntas en una sola fila. */
@@ -286,7 +329,8 @@ function cloudSyncSettings() {
 async function cloudPushAll() {
   if (!Cloud.client || !Cloud.online) return;
   for (const key of Object.keys(TABLE_KEYS)) {
-    await cloudSyncArray(key, [], stateGet(key) || []);
+    Cloud.espejo[key] = new Map();          // se manda todo, sin comparar
+    await cloudSyncArray(key, stateGet(key) || []);
   }
   cloudSyncSettings();
 }

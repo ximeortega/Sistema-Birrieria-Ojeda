@@ -121,10 +121,9 @@ const DB = {
     return v === undefined || v === null ? fallback : v;
   },
   set(key, val) {
-    const antes = STATE[key];
     stateSet(key, val);
     if (typeof Cloud === 'undefined' || !Cloud.online) return;
-    if (key in TABLE_KEYS) cloudSyncArray(key, antes || [], val || []);
+    if (key in TABLE_KEYS) cloudSyncArray(key, val || []);
     else if (SETTING_KEYS.indexOf(key) >= 0) cloudSyncSettings();
   },
   remove(key) {
@@ -2521,6 +2520,15 @@ function sembrarDefaults() {
  * barra de arriba: en celular la barra lateral no se ve y no había forma de
  * enterarse de que el equipo estaba trabajando aislado.
  */
+/** El aviso lleva a conectar el equipo, o muestra el diagnóstico si ya entró. */
+function tocarSyncChip() {
+  if (typeof Cloud !== 'undefined' && Cloud.online) revisarConexion();
+  else mostrarAccesoNegocio();
+}
+
+/** cloud.js llama aquí cada vez que sube algo o queda pendiente. */
+function onCloudStatus() { actualizarEstadoNube(); }
+
 function actualizarEstadoNube() {
   const hayNube = typeof Cloud !== 'undefined' && !!cloudConfig();
   const conectado = hayNube && Cloud.online;
@@ -2531,12 +2539,26 @@ function actualizarEstadoNube() {
 
   const chip = $('#syncChip');
   if (!chip) return;
-  if (conectado) { chip.classList.add('hidden'); return; }
+
+  // Conectado y con todo subido: no hace falta decir nada.
+  if (conectado && !Cloud.pendientes.size && !Cloud.syncing) { chip.classList.add('hidden'); return; }
   chip.classList.remove('hidden');
-  chip.innerHTML = `${icon('alert', 15)}<span>Sin sincronizar</span>`;
-  chip.title = hayNube
-    ? 'Este equipo no ha entrado al negocio: lo que hagas aquí no lo ven los demás. Toca para conectarlo.'
-    : 'Este equipo trabaja solo.';
+
+  if (conectado && Cloud.syncing) {
+    chip.className = 'sync-chip trabajando';
+    chip.innerHTML = `${icon('upload', 15)}<span>Guardando…</span>`;
+    chip.title = 'Subiendo los cambios.';
+  } else if (conectado) {
+    chip.className = 'sync-chip pendiente';
+    chip.innerHTML = `${icon('clock', 15)}<span>Sin guardar</span>`;
+    chip.title = 'Hay cambios que no se pudieron subir. Se reintenta solo.';
+  } else {
+    chip.className = 'sync-chip';
+    chip.innerHTML = `${icon('alert', 15)}<span>Sin sincronizar</span>`;
+    chip.title = hayNube
+      ? 'Este equipo no ha entrado al negocio: lo que hagas aquí no lo ven los demás. Toca para conectarlo.'
+      : 'Este equipo trabaja solo.';
+  }
 }
 
 arrancar();
