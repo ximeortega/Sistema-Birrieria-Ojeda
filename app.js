@@ -2757,10 +2757,13 @@ function filasCortes(a, b) {
 const REPORTES = [
   { id:'corte',     nombre:'Corte del día',        icono:'wallet',  detalle:'Ventas, efectivo y diferencia de hoy' },
   { id:'resumen',   nombre:'Resumen por día',      icono:'chart',   filas:filasResumen,   dinero:[4,5,6,7,8,9,10], detalle:'Una fila por día del periodo' },
-  { id:'ventas',    nombre:'Ventas por comanda',   icono:'receipt', filas:filasVentas,    dinero:[8,11,14,15],     detalle:'Cada comanda con su total y forma de pago' },
+  { id:'ventas',    nombre:'Ventas por comanda',   icono:'receipt', filas:filasVentas,    dinero:[8,11,14,15],
+    // El Excel lleva las 19 columnas; en papel solo caben las de lectura.
+    pdfCols:[0,1,2,3,4,10,11,12,13], detalle:'Cada comanda con su total y forma de pago' },
   { id:'productos', nombre:'Productos vendidos',   icono:'box',     filas:filasProductos, dinero:[2],              detalle:'Piezas e importe de cada producto' },
   { id:'gastos',    nombre:'Gastos',               icono:'minus',   filas:filasGastos,    dinero:[5],              detalle:'Cada concepto con su responsable' },
-  { id:'cortes',    nombre:'Cortes guardados',     icono:'check',   filas:filasCortes,    dinero:[2,3,4,5,6,7,8,9,10], detalle:'Historial de cierres con su diferencia' },
+  { id:'cortes',    nombre:'Cortes guardados',     icono:'check',   filas:filasCortes,    dinero:[2,3,4,5,6,7,8,9,10],
+    pdfCols:[0,1,2,5,6,8,9,10], detalle:'Historial de cierres con su diferencia' },
 ];
 
 let repSeleccion = ['corte', 'resumen', 'ventas', 'gastos'];
@@ -2821,19 +2824,25 @@ function filasCorteDelDia() {
 }
 
 /* ---------- Descargar en PDF -------------------------------------------- */
-/** Tabla con color para el documento. */
-function tablaPDF(rows, dinero) {
+/** Tabla con color para el documento; recorta a las columnas que caben en papel. */
+function tablaPDF(rows, dinero, cols) {
   if (!rows || rows.length <= 1) return '<p class="vacio">Sin movimientos en este periodo.</p>';
-  const celda = (v, iC, esTotal) => {
-    const num = dinero && dinero.includes(iC);
+
+  // Si el reporte declara columnas para papel, se recorta y se reajustan los importes.
+  const usar = cols && cols.length ? cols : rows[0].map((_, i) => i);
+  const esDinero = new Set();
+  usar.forEach((orig, nuevo) => { if (dinero && dinero.includes(orig)) esDinero.add(nuevo); });
+
+  const celda = (v, i) => {
+    const num = esDinero.has(i);
     const txt = num && v !== '' && v !== null && v !== undefined ? money(v) : esc(String(v == null ? '' : v));
     return `<td class="${num ? 'num' : ''}">${txt}</td>`;
   };
   const cuerpo = rows.slice(1).map((f) => {
     const esTotal = String(f[0]).toUpperCase() === 'TOTAL';
-    return `<tr class="${esTotal ? 'total' : ''}">${f.map((v, i) => celda(v, i, esTotal)).join('')}</tr>`;
+    return `<tr class="${esTotal ? 'total' : ''}">${usar.map((c, i) => celda(f[c], i)).join('')}</tr>`;
   }).join('');
-  return `<table><thead><tr>${rows[0].map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${cuerpo}</tbody></table>`;
+  return `<table><thead><tr>${usar.map((c) => `<th>${esc(rows[0][c])}</th>`).join('')}</tr></thead><tbody>${cuerpo}</tbody></table>`;
 }
 
 /** Bloque especial del corte del día, con tarjetas de color. */
@@ -2871,18 +2880,27 @@ function descargarPDF() {
   const secciones = elegidos.map((r) => `
     <section>
       <h2>${esc(r.nombre)}</h2>
-      ${r.id === 'corte' ? corteEnPDF() : tablaPDF(r.filas(a, b), r.dinero)}
+      ${r.id === 'corte' ? corteEnPDF() : tablaPDF(r.filas(a, b), r.dinero, r.pdfCols)}
     </section>`).join('');
 
   const doc = `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <title>${esc(bizName())} · Reporte</title>
 <style>
-  @page { size:A4; margin:14mm 12mm; }
+  @page { size:A4; margin:12mm 10mm; }
   *{box-sizing:border-box}
+  html,body{max-width:100%;overflow-x:hidden}
   body{
-    margin:0;font-family:"Segoe UI",Arial,Helvetica,sans-serif;color:#16161a;font-size:11px;
+    margin:0;padding:0;font-family:"Segoe UI",Arial,Helvetica,sans-serif;color:#16161a;
+    font-size:11px;line-height:1.4;
     -webkit-print-color-adjust:exact;print-color-adjust:exact;
   }
+  /* Si el reporte se ve en pantalla (celular), se lee cómodo y con márgenes. */
+  @media screen{
+    body{padding:16px;background:#f4f4f7;font-size:13px}
+    .hoja{background:#fff;padding:18px;border-radius:12px;max-width:900px;margin:0 auto;
+          box-shadow:0 4px 24px rgba(16,16,22,.08)}
+  }
+  @media print{ .hoja{padding:0} }
   .portada{
     background:linear-gradient(135deg,#a51420,#6b0c14);color:#fff;
     padding:22px 24px;border-radius:12px;margin-bottom:18px;
@@ -2895,16 +2913,24 @@ function descargarPDF() {
     font-size:13px;margin:0 0 9px;padding:7px 11px;border-radius:7px;
     background:#fdf1f2;color:#8c111c;border-left:4px solid #a51420;
   }
-  table{width:100%;border-collapse:collapse;margin-bottom:6px}
+  table{width:100%;border-collapse:collapse;margin-bottom:6px;table-layout:fixed}
   th{
-    background:#2b2b31;color:#fff;font-size:9.5px;text-transform:uppercase;
-    letter-spacing:.04em;padding:6px 8px;text-align:left;
+    background:#2b2b31;color:#fff;font-size:9px;text-transform:uppercase;
+    letter-spacing:.03em;padding:6px 6px;text-align:left;
   }
-  td{padding:5px 8px;border-bottom:1px solid #ececf0}
+  td{padding:5px 6px;border-bottom:1px solid #ececf0;word-break:break-word;overflow-wrap:anywhere}
+  th:first-child,td:first-child{width:auto}
+  thead{display:table-header-group}   /* el encabezado se repite en cada hoja */
+  tr{page-break-inside:avoid}
   tbody tr:nth-child(even){background:#fafafc}
   td.num,th:last-child{text-align:right;font-variant-numeric:tabular-nums}
   tr.total td{background:#fdf1f2;font-weight:800;color:#8c111c;border-top:2px solid #a51420}
-  .tarjetas{display:flex;gap:8px;margin-bottom:12px}
+  .tarjetas{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  @media screen and (max-width:560px){
+    .tarjeta{min-width:calc(50% - 4px)}
+    th,td{font-size:11px;padding:6px 5px}
+    .portada h1{font-size:19px}
+  }
   .tarjeta{
     flex:1;border:1px solid #e7e7ec;border-radius:9px;padding:10px 12px;background:#fff;
   }
@@ -2917,6 +2943,7 @@ function descargarPDF() {
   .vacio{color:#74747e;font-style:italic;padding:6px 0}
   .pie{margin-top:22px;padding-top:10px;border-top:1px solid #ececf0;font-size:9.5px;color:#74747e;text-align:center}
 </style></head><body>
+  <div class="hoja">
   <div class="portada">
     <h1>${esc(bizName())}</h1>
     <p>${esc(periodoTexto(kind, a, b))}</p>
@@ -2924,16 +2951,63 @@ function descargarPDF() {
   </div>
   ${secciones}
   <div class="pie">${esc(bizName())} · Sistema de operación · Hecho por Ximena Ortega</div>
+  </div>
 </body></html>`;
 
-  const v = window.open('', '_blank');
-  if (!v) { toast('El navegador bloqueó la ventana. Permite las ventanas emergentes.', 'err'); return; }
-  v.document.write(doc);
-  v.document.close();
-  v.focus();
-  // Se deja un momento para que cargue antes de abrir el diálogo de impresión.
-  setTimeout(() => { try { v.print(); } catch (e) {} }, 400);
-  toast('En el diálogo elige "Guardar como PDF"', 'ok');
+  imprimirDocumento(doc, archivo('reporte', rangoDe(kind)[2]));
+}
+
+/**
+ * Manda el documento a imprimir sin abrir ventanas nuevas: los celulares las
+ * bloquean casi siempre. Se usa un marco oculto dentro de la misma página, que
+ * es lo que entienden tanto Android como iPhone y la computadora.
+ */
+function imprimirDocumento(html, nombre) {
+  const anterior = document.getElementById('marcoImpresion');
+  if (anterior) anterior.remove();
+
+  const marco = document.createElement('iframe');
+  marco.id = 'marcoImpresion';
+  marco.setAttribute('aria-hidden', 'true');
+  marco.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;';
+  document.body.appendChild(marco);
+
+  let listo = false;
+  const lanzar = () => {
+    if (listo) return;
+    listo = true;
+    try {
+      marco.contentWindow.focus();
+      marco.contentWindow.print();
+      toast('En el diálogo elige "Guardar como PDF"', 'ok');
+    } catch (e) {
+      // Algún navegador de celular no deja imprimir desde el marco: se descarga.
+      descargarDocumento(html, nombre);
+    }
+    // Se retira después, para no cortar el diálogo de impresión.
+    setTimeout(() => marco.remove(), 60000);
+  };
+
+  marco.onload = lanzar;
+  const d = marco.contentWindow.document;
+  d.open();
+  d.write(html);
+  d.close();
+  // Si el marco no avisa que cargó (pasa en algunos móviles), se lanza igual.
+  setTimeout(lanzar, 700);
+}
+
+/** Último recurso: guardar el reporte como archivo para abrirlo e imprimirlo. */
+function descargarDocumento(html, nombre) {
+  const blob = new Blob([html], { type:'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = nombre + '.html';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast('Se descargó el reporte: ábrelo y usa Imprimir para guardarlo en PDF', 'ok');
 }
 
 /* =========================================================================
