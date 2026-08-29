@@ -838,6 +838,7 @@ small{font-size:12px}
 @media(max-width:900px){
   .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
   .profile-grid{grid-template-columns:1fr}
+  .table-pick{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}
   .field-grid,.field-grid.two{grid-template-columns:1fr 1fr}
   .pay-row{grid-template-columns:1fr auto;row-gap:12px}
   .pay-row .pr-actions{grid-column:1/-1}
@@ -937,13 +938,65 @@ small{font-size:12px}
   .tk-body{max-height:44dvh}
   .product-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
   .modal{border-radius:20px}
-  .modal-foot{position:sticky;bottom:0;background:var(--surface)}
-  .modal-foot .btn{flex:1;min-width:0}
+  .modal-foot{position:sticky;bottom:0;background:var(--surface);flex-wrap:wrap}
+  .modal-foot .btn{flex:1 1 130px;min-width:0}
+
+  /* Al enfocar un campo, iOS acerca la pantalla si la letra mide menos de 16px */
+  .field input,.field select,.field textarea,.input,.login-card input{font-size:16px}
+
+  /* Sub-pestañas de Ajustes: ocupan el ancho y reparten el espacio */
+  .subtabs{width:100%}
+  .subtabs button{flex:1;justify-content:center;padding:11px 10px;font-size:12.5px}
+
+  /* Reportes y respaldo, uno por renglón */
+  .report-grid{grid-template-columns:1fr}
+  .report-grid .btn{width:100%}
+
+  /* Elegir mesa y elegir pestañas del perfil */
+  .table-pick{grid-template-columns:1fr 1fr;gap:8px}
+  .table-opt{padding:11px 10px}
+  .table-opt b{font-size:14px}
+  .tab-picker{grid-template-columns:1fr}
+
+  /* Barra de platos: se desliza de lado en vez de amontonarse */
+  .people-bar{
+    flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;
+    padding:9px 11px;gap:6px;margin-bottom:12px;
+  }
+  .people-bar::-webkit-scrollbar{display:none}
+  .pb-label{display:none}
+  .person-chip,.person-add,.person-edit{flex:none;padding:8px 12px}
+  .tk-group-head{padding:8px 9px}
+
+  /* Estado de la nube y aviso del login */
+  .cloud-warn{flex-wrap:wrap}
+  .cloud-warn .btn{margin-left:0;width:100%;margin-top:4px}
+  .cloud-state{padding:11px 13px}
+
+  /* Logo del negocio en Ajustes */
+  .logo-row{gap:14px}
+  .logo-preview{width:74px;height:74px}
+  .logo-row .actions{width:100%}
+  .logo-row .actions .btn,.logo-row .actions label{flex:1;justify-content:center}
+
+  /* Encabezados de sección: el título arriba y los botones abajo */
+  .section-head{align-items:stretch}
+  .section-head .actions{width:100%}
+  .card-head{flex-wrap:wrap}
   .toast{bottom:calc(var(--nav-h) + 12px);left:12px;right:12px;transform:translateY(14px);max-width:none}
   .toast.show{transform:translateY(0)}
 }
 @media(max-width:520px){
   .role-grid{grid-template-columns:1fr}
+  .table-pick{grid-template-columns:1fr}
+  .subtabs button span{display:inline}
+  .modal-foot{flex-direction:column-reverse}
+  .modal-foot .btn{width:100%;flex:none}
+  .day-strip{gap:8px 14px}
+  .tc-plate{font-size:11.5px}
+  .oc-total{font-size:18px}
+  /* Con muchas pestañas, la barra de abajo se desliza sin apretar los iconos */
+  .nav-btn{min-width:56px;font-size:9.5px;padding:7px 3px}
   .role-card{padding:11px 12px}
   .kpi-grid{grid-template-columns:1fr}
   .kpi.span2{grid-column:auto}
