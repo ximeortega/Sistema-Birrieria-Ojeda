@@ -542,8 +542,11 @@ function renderNav() {
     <button class="nav-btn ${currentPage === id ? 'active' : ''}" data-page="${id}">
       ${icon(ic, 19, 'nav-icon')}<span>${label}</span>
       ${b[id] ? `<em class="nav-badge">${b[id]}</em>` : ''}
-    </button>`).join('');
-  $$('.nav-btn').forEach((el) => (el.onclick = () => go(el.dataset.page)));
+    </button>`).join('')
+    // En celular la barra lateral no se ve: la cuenta va al final de la barra roja.
+    + `<button class="nav-btn nav-cuenta" onclick="abrirCuenta()">
+         ${icon('user', 19, 'nav-icon')}<span>Cuenta</span></button>`;
+  $$('.nav-btn[data-page]').forEach((el) => (el.onclick = () => go(el.dataset.page)));
 }
 const roleAllowed = (page) => navOf(session && session.role).some((n) => n[0] === page);
 
