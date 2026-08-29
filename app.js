@@ -2530,9 +2530,15 @@ function renderAdminReportes() {
 
       <div class="rep-pie">
         <span class="muted" id="repCuenta">${repSeleccion.length} seleccionado${repSeleccion.length === 1 ? '' : 's'}</span>
-        <div class="actions">
-          <button class="btn btn-line" onclick="descargarPDF()">${icon('print', 16)} Descargar PDF</button>
-          <button class="btn btn-primary" onclick="descargarExcel()">${icon('download', 16)} Descargar Excel</button>
+        <div class="descargas">
+          <button class="btn-descarga excel" onclick="descargarExcel()">
+            ${icon('chart', 19)}
+            <span><b>Excel</b><small>Para trabajar las cifras</small></span>
+          </button>
+          <button class="btn-descarga pdf" onclick="descargarPDF()">
+            ${icon('print', 19)}
+            <span><b>PDF</b><small>Para imprimir o archivar</small></span>
+          </button>
         </div>
       </div>
     </div>

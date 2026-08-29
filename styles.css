@@ -813,6 +813,20 @@ small{font-size:12px}
   display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
   margin-top:16px;padding-top:14px;border-top:1px solid var(--line-2);
 }
+.descargas{display:flex;gap:10px}
+.btn-descarga{
+  display:flex;align-items:center;gap:11px;padding:12px 18px;border-radius:var(--r);
+  text-align:left;font-weight:700;color:#fff;transition:.16s;border:0;
+}
+.btn-descarga b{display:block;font-size:15px;letter-spacing:.01em}
+.btn-descarga small{display:block;font-size:11px;font-weight:600;opacity:.82;margin-top:1px}
+.btn-descarga:active{transform:scale(.98)}
+/* El PDF es el que más se usa: va a la derecha y con el rojo de la marca. */
+.btn-descarga.pdf{background:var(--brand);box-shadow:0 4px 14px rgba(165,20,32,.3)}
+.btn-descarga.pdf:hover{background:var(--brand-600)}
+/* El verde de Excel, para que se reconozca de un vistazo. */
+.btn-descarga.excel{background:#1d6f42;box-shadow:0 4px 14px rgba(29,111,66,.28)}
+.btn-descarga.excel:hover{background:#175a35}
 
 /* Acceso del negocio y estado de la nube */
 .sync-chip{
@@ -1052,7 +1066,8 @@ small{font-size:12px}
   /* Reportes y respaldo, uno por renglón */
   .rep-lista{grid-template-columns:1fr}
   .rep-pie{flex-direction:column;align-items:stretch}
-  .rep-pie .actions .btn{flex:1;justify-content:center}
+  .descargas{flex-direction:column}
+  .btn-descarga{justify-content:center;padding:14px 18px}
 
   /* Elegir mesa y elegir pestañas del perfil */
   .table-pick{grid-template-columns:1fr 1fr;gap:8px}
