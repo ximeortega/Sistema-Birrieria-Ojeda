@@ -42,6 +42,7 @@ const Cloud = {
   settingsSucio: false,    // hay configuración sin guardar
   sinColumnaEntrega: false, // la base todavía no tiene orders.delivery
   realtimeOk: false,       // ¿el aviso instantáneo quedó conectado?
+  trajoCambios: false,     // la última bajada trajo algo distinto
 };
 
 const TABLAS = ['products', 'orders', 'expenses', 'cuts'];
@@ -243,17 +244,26 @@ async function cloudPullAll() {
       cuts:     (cu.data || []).map(filaACorte),
     };
     const crudo = { products: pr.data, orders: or_.data, expenses: ex.data, cuts: cu.data };
+    Cloud.trajoCambios = false;
     Object.keys(bajado).forEach((k) => {
+      const antes = JSON.stringify((typeof stateGet === 'function' && stateGet(k)) || []);
       marcarSincronizado(k, bajado[k]);              // lo de la nube queda confirmado
-      stateSet(k, fusionarConPendientes(k, bajado[k]));  // sin perder lo que falta subir
+      const unido = fusionarConPendientes(k, bajado[k]);
+      stateSet(k, unido);                            // sin perder lo que falta subir
       marcarLeidoHasta(k, crudo[k]);
+      if (JSON.stringify(unido) !== antes) Cloud.trajoCambios = true;
     });
 
     const ajustes = (se.data && se.data.data) || {};
-    SETTING_KEYS.forEach((k) => { if (ajustes[k] !== undefined) stateSet(k, ajustes[k]); });
+    SETTING_KEYS.forEach((k) => {
+      if (ajustes[k] === undefined) return;
+      if (JSON.stringify(stateGet(k)) !== JSON.stringify(ajustes[k])) Cloud.trajoCambios = true;
+      stateSet(k, ajustes[k]);
+    });
     Cloud.error = null;
   } catch (e) {
     Cloud.error = 'No se pudo leer de la nube: ' + e.message;
+    Cloud.trajoCambios = true;   // ante la duda, se redibuja
   }
 }
 

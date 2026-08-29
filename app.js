@@ -360,7 +360,10 @@ function abrirSesion(role, saludar) {
   $('#userRoleLabel').textContent = session.label;
   $('#userAvatar').textContent = session.label[0];
   applyBranding();
-  go(navOf(role)[0][0]);
+
+  // Se retoma la pestaña donde se quedó, si ese perfil la tiene permitida.
+  const guardada = leerPagina();
+  go(guardada && roleAllowed(guardada) ? guardada : navOf(role)[0][0]);
   if (saludar) toast('Bienvenido, ' + session.label, 'ok');
   return true;
 }
@@ -374,6 +377,7 @@ function tryLogin() {
 function logout() {
   session = null;
   borrarSesion();
+  olvidarPagina();
   closeModal(); closeSheet();
   $('#appView').classList.add('hidden');
   mostrarLogin();
@@ -550,9 +554,17 @@ function renderNav() {
 }
 const roleAllowed = (page) => navOf(session && session.role).some((n) => n[0] === page);
 
+/* La pestaña abierta se recuerda en el equipo: recargar en plena corrida no
+   debe devolver a nadie al inicio. */
+const PAGINA_KEY = 'bo_pagina';
+function guardarPagina(p) { try { localStorage.setItem(PAGINA_KEY, p); } catch {} }
+function leerPagina() { try { return localStorage.getItem(PAGINA_KEY); } catch { return null; } }
+function olvidarPagina() { try { localStorage.removeItem(PAGINA_KEY); } catch {} }
+
 function go(page) {
   if (!roleAllowed(page)) page = navOf(session.role)[0][0];
   currentPage = page;
+  guardarPagina(page);
   const [ey, title] = TITLES[page];
   $('#pageEyebrow').textContent = ey;
   $('#pageTitle').textContent = title;
@@ -3234,7 +3246,11 @@ function mostrarAccesoNegocio() {
 async function arrancar() {
   // Se pinta el login de una vez con lo que hay en el equipo: esperar a la nube
   // dejaba la pantalla a medias unos segundos.
-  sembrarDefaults();
+  // Ojo: si hay nube configurada NO se siembra todavía. En un equipo nuevo, el
+  // menú de fábrica se tomaría como "capturado aquí" y acabaría mezclándose con
+  // el de la nube en vez de ceder ante él.
+  const conNube = typeof cloudConfig === 'function' && !!cloudConfig();
+  if (!conNube) sembrarDefaults();
   migrarInicio();
   applyBranding();
 
@@ -3250,7 +3266,10 @@ async function arrancar() {
   migrarInicio();
   applyBranding();
   actualizarEstadoNube();
-  if (session) refresh();          // se redibuja con lo que llegó de la nube
+
+  // Solo se redibuja si la nube trajo algo distinto: si no, la pantalla
+  // parpadeaba en cada recarga sin motivo.
+  if (session) { if (Cloud.trajoCambios) refresh(); }
   else mostrarLogin();
 }
 

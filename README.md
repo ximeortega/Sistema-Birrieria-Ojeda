@@ -131,6 +131,8 @@ Dos cosas nada más:
   Como alternativa, basta con dejar el archivo `logo.png` en esta carpeta.
   Si no hay ninguno de los dos, se usa el `logo.svg` incluido.
 - Login con selección de perfil y teclado numérico de PIN, pensado para tablet o celular.
+- **Recargar no interrumpe**: el equipo recuerda el perfil y la pestaña abierta, así que
+  volver a cargar en plena corrida deja a cada quien donde estaba.
 - Interfaz responsiva: menú lateral en escritorio, barra inferior en celular; la hoja de
   comanda se vuelve pantalla completa con el ticket como cajón deslizable.
 
