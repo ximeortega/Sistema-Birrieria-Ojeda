@@ -830,6 +830,7 @@ function orderCard(o) {
     <div class="oc-foot">
       <div class="oc-total">${money(orderTotal(o))}</div>
       <div class="actions">
+        <button class="btn btn-wa btn-sm" title="Enviar por WhatsApp" onclick="enviarWhatsApp('${o.id}')">${icon('users', 15)}</button>
         ${o.paid
           ? `<button class="btn btn-line btn-sm" onclick="viewOrder('${o.id}')">${icon('receipt', 15)} Ticket</button>`
           : `<button class="btn btn-line btn-sm" onclick="editOrder('${o.id}')">${icon('edit', 15)} Editar</button>
@@ -1251,9 +1252,113 @@ function viewOrder(id) {
         <div class="kv"><span>Hora de cobro</span><b>${esc(o.payment.time)}</b></div>` : ''}
     </div>
     <div class="modal-foot">
+      <button class="btn btn-wa" onclick="closeModal(); enviarWhatsApp('${o.id}')">${icon('users', 16)} WhatsApp</button>
       <button class="btn btn-line" onclick="window.print()">${icon('print', 16)} Imprimir</button>
       <button class="btn btn-primary" onclick="closeModal()">Cerrar</button>
     </div>`);
+}
+
+/* =========================================================================
+   Enviar la comanda por WhatsApp
+   -------------------------------------------------------------------------
+   Se abre WhatsApp con el mensaje ya escrito. No hace falta ninguna cuenta de
+   empresa ni conectar nada: funciona en el celular y en la computadora.
+   ========================================================================= */
+
+/** Deja el número como lo espera WhatsApp: país + 10 dígitos, sin signos. */
+function telWhatsApp(numero) {
+  const d = String(numero || '').replace(/\D/g, '');
+  if (!d) return '';
+  if (d.length === 10) return '52' + d;                 // México, lo normal aquí
+  if (d.length === 11 && d.startsWith('1')) return '52' + d.slice(1);
+  return d;                                             // ya viene con país
+}
+
+/** Arma el texto del pedido, con los asteriscos que WhatsApp pone en negritas. */
+function mensajeComanda(o) {
+  const L = [];
+  const paraLlevar = !!o.delivery;
+
+  L.push('*' + bizName().toUpperCase() + '*');
+  L.push(paraLlevar ? `Pedido para llevar · #${o.folio}` : `${o.table} · #${o.folio}`);
+  L.push(`${dateText(new Date(o.createdAt))} · ${o.createdTime}`);
+  L.push('');
+
+  if (paraLlevar || o.customer) {
+    if (o.customer) L.push(`*Cliente:* ${o.customer}`);
+    if (o.delivery) {
+      if (o.delivery.mode) L.push(`*Entrega:* ${o.delivery.mode}`);
+      if (o.delivery.phone) L.push(`*Teléfono:* ${o.delivery.phone}`);
+      if (o.delivery.address) L.push(`*Dirección:* ${o.delivery.address}`);
+      if (o.delivery.notes) L.push(`*Referencias:* ${o.delivery.notes}`);
+    }
+    L.push('');
+  }
+
+  L.push('*PEDIDO*');
+  const platos = orderPeople(o);
+  platos.forEach((plato) => {
+    const suyos = o.items.filter((i) => itemPerson(i) === plato);
+    if (!suyos.length) return;
+    if (platos.length > 1) L.push(`_${plato}_`);
+    suyos.forEach((i) => {
+      L.push(`• ${i.qty} × ${i.name} — ${money(i.price * i.qty)}${i.note ? ` (${i.note})` : ''}`);
+    });
+  });
+
+  L.push('');
+  L.push(`*TOTAL: ${money(orderTotal(o))}*`);
+  if (o.paid && o.payment) {
+    L.push(`Pagado con ${o.payment.method.toLowerCase()}` +
+      (o.payment.change > 0 ? ` · cambio ${money(o.payment.change)}` : ''));
+  } else {
+    L.push('_Pendiente de cobro_');
+  }
+  return L.join('\n');
+}
+
+function abrirWhatsApp(numero, texto) {
+  const base = numero ? 'https://wa.me/' + numero : 'https://wa.me/';
+  window.open(base + '?text=' + encodeURIComponent(texto), '_blank');
+}
+
+/** Elige a quién mandárselo: al repartidor guardado, al cliente, o a otro contacto. */
+function enviarWhatsApp(oid) {
+  const o = allOrders().find((x) => x.id === oid);
+  if (!o) return;
+  const texto = mensajeComanda(o);
+  const repartidor = telWhatsApp(DB.get('waReparto', ''));
+  const cliente = o.delivery ? telWhatsApp(o.delivery.phone) : '';
+
+  openModal(`${modalHead('Enviar por WhatsApp', (o.delivery ? 'Para llevar' : o.table) + ' · #' + o.folio)}
+    <div class="modal-body">
+      <pre class="wa-vista">${esc(texto)}</pre>
+      <div class="grid" style="gap:8px">
+        ${repartidor ? `<button class="btn btn-success full" onclick="closeModal(); abrirWhatsApp('${repartidor}', WA_TEXTO)">
+            ${icon('users', 16)} Mandar a quien reparte</button>` : ''}
+        ${cliente ? `<button class="btn btn-line full" onclick="closeModal(); abrirWhatsApp('${cliente}', WA_TEXTO)">
+            ${icon('user', 16)} Mandar al cliente (${esc(o.delivery.phone)})</button>` : ''}
+        <button class="btn ${repartidor || cliente ? 'btn-line' : 'btn-success'} full"
+                onclick="closeModal(); abrirWhatsApp('', WA_TEXTO)">
+          ${icon('search', 16)} Elegir contacto en WhatsApp</button>
+        <button class="btn btn-line full" onclick="copiarComanda()">${icon('receipt', 16)} Copiar el texto</button>
+      </div>
+      ${!repartidor ? `<p class="muted" style="font-size:12px">
+        En <b>Ajustes → Datos del negocio</b> puedes guardar el WhatsApp de quien reparte para
+        mandárselo de un toque.</p>` : ''}
+    </div>`, 'wide');
+  WA_TEXTO = texto;
+}
+
+let WA_TEXTO = '';
+function copiarComanda() {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(WA_TEXTO).then(
+      () => toast('Texto copiado', 'ok'),
+      () => toast('No se pudo copiar', 'err'));
+  } else {
+    toast('No se pudo copiar', 'err');
+  }
 }
 
 /* =========================================================================
@@ -1987,6 +2092,11 @@ function renderAdminNegocio() {
           <input id="cfgName" value="${esc(bizName())}" placeholder="Birriería Ojeda">
         </div>
         <p class="muted" style="font-size:12px;margin:-4px 0 12px">El fondo se aplica a los días nuevos; el de hoy se ajusta desde la pestaña Corte.</p>
+        <div class="field" style="margin-bottom:12px">
+          <label>WhatsApp de quien reparte <i class="opt">opcional</i></label>
+          <input id="cfgWa" type="tel" inputmode="tel" placeholder="10 dígitos"
+                 value="${esc(DB.get('waReparto', ''))}">
+        </div>
         <div class="field-grid two">
           <div class="field"><label>Número de mesas</label>
             <input id="cfgTables" type="number" inputmode="numeric" min="1" max="40" value="${tables}"></div>
@@ -2288,6 +2398,7 @@ function saveSettings() {
   DB.set('bizName', name);
   DB.set('tableCount', tables);
   DB.set('defaultFund', Number($('#cfgFund').value || 0));
+  DB.set('waReparto', $('#cfgWa').value.trim());
   applyBranding();
   toast('Configuración guardada', 'ok');
   renderAdmin();

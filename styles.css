@@ -98,6 +98,8 @@ small{font-size:12px}
 .btn-amber:hover{background:#8f5900}
 .btn-ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.5)}
 .btn-ghost:hover{background:#fff;color:var(--brand-ink);border-color:#fff}
+.btn-wa{background:#25d366;color:#0b3b1e}
+.btn-wa:hover{background:#1fbb59}
 .btn-danger{background:#fff;color:var(--brand-ink);border-color:var(--brand-line)}
 .btn-danger:hover{background:var(--brand-soft)}
 .btn-lg{padding:15px 20px;font-size:15px;border-radius:var(--r)}
@@ -734,6 +736,12 @@ small{font-size:12px}
 }
 .subtabs button:hover{color:var(--ink-2)}
 .subtabs button.on{background:var(--surface);color:var(--brand-ink);box-shadow:var(--sh-xs)}
+
+.wa-vista{
+  margin:0 0 4px;padding:14px 16px;border-radius:var(--r);background:#f7f7f9;
+  border:1px solid var(--line);font-family:var(--font);font-size:12.5px;line-height:1.55;
+  white-space:pre-wrap;word-break:break-word;max-height:38dvh;overflow:auto;color:var(--ink-2);
+}
 
 .entrega-aviso{
   display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border-radius:var(--r-sm);

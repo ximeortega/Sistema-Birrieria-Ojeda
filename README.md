@@ -31,6 +31,11 @@ se guardan en el `localStorage` del navegador.
   Se pueden renombrar (*Papá*, *niño*, *mesa chica*) o quitar.
 - Debajo del “+” está el **historial completo del día** con filtros: abiertas, cobradas o
   todas, más el resumen de comandas, piezas, por cobrar y cobrado.
+- **Enviar por WhatsApp**: el botón verde de cada comanda abre WhatsApp con el pedido ya
+  escrito — cliente, teléfono, dirección, referencias, los productos separados por plato y el
+  total. Se puede mandar a quien reparte (si se guardó su número en Ajustes), al teléfono del
+  cliente, o elegir el contacto en el momento. También se puede copiar el texto.
+  No hace falta ninguna cuenta de empresa ni conectar nada.
 
 ### Cocina
 - Una sola lista: **solo lo que falta preparar**. Sin columnas ni pasos intermedios.

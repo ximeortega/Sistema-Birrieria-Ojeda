@@ -18,7 +18,7 @@ const TABLE_KEYS = {
   cuts:     'cuts',
 };
 /** Claves de configuración: todas juntas en una sola fila de `settings`. */
-const SETTING_KEYS = ['users', 'tableCount', 'bizName', 'funds', 'defaultFund', 'initialFund', 'logo'];
+const SETTING_KEYS = ['users', 'tableCount', 'bizName', 'funds', 'defaultFund', 'initialFund', 'logo', 'waReparto'];
 
 const Cloud = {
   client: null,          // cliente de supabase-js
