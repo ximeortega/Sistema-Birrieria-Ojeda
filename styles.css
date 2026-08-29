@@ -170,14 +170,14 @@ small{font-size:12px}
 /* Firma de autoría */
 .firma{
   margin-top:auto;padding-top:clamp(16px,3vh,30px);
-  font-size:11.5px;letter-spacing:.06em;color:rgba(255,255,255,.42);
+  font-size:12px;letter-spacing:.06em;color:rgba(255,255,255,.66);
 }
-.firma b{font-weight:750;color:rgba(255,255,255,.7)}
+.firma b{font-weight:800;color:#fff}
 .firma.lateral{
-  margin:0;padding:10px 2px 0;text-align:center;font-size:10.5px;
-  color:rgba(255,255,255,.4);border-top:1px solid rgba(255,255,255,.1);
+  margin:0;padding:10px 2px 0;text-align:center;font-size:11px;
+  color:rgba(255,255,255,.62);border-top:1px solid rgba(255,255,255,.14);
 }
-.firma.lateral b{color:rgba(255,255,255,.6)}
+.firma.lateral b{color:#fff;font-weight:800}
 
 .login-card{padding:clamp(24px,4vh,48px) clamp(26px,3vw,46px);display:flex;flex-direction:column;gap:clamp(12px,2.2vh,20px);justify-content:center}
 .login-card h2{font-size:clamp(21px,3vh,27px);letter-spacing:-.01em}
@@ -767,7 +767,7 @@ small{font-size:12px}
 }
 .sync-chip:hover{background:#ffefcf}
 .cuenta-btn{
-  display:none;width:38px;height:38px;border-radius:12px;flex:none;
+  display:flex;width:38px;height:38px;border-radius:12px;flex:none;
   background:var(--brand);color:#fff;font-weight:800;font-size:14px;
   align-items:center;justify-content:center;transition:.15s;
 }
@@ -913,7 +913,6 @@ small{font-size:12px}
   .topbar h2{font-size:19px}
   .topbar .eyebrow{font-size:10px}
   .clock-box strong{font-size:16px}
-  .cuenta-btn{display:flex}
   .sync-chip{padding:8px;gap:0}
   .sync-chip span{display:none}
   .clock-box span{display:none}
@@ -1008,30 +1007,6 @@ small{font-size:12px}
   .tk-group-head{padding:8px 9px}
 
   /* Estado de la nube y aviso del login */
-  .sync-chip{
-  display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:999px;
-  background:var(--amber-soft);border:1px solid var(--amber-line);color:var(--amber);
-  font-size:12.5px;font-weight:750;white-space:nowrap;transition:.15s;
-}
-.sync-chip:hover{background:#ffefcf}
-.cuenta-btn{
-  display:none;width:38px;height:38px;border-radius:12px;flex:none;
-  background:var(--brand);color:#fff;font-weight:800;font-size:14px;
-  align-items:center;justify-content:center;transition:.15s;
-}
-.cuenta-btn:hover{background:var(--brand-600)}
-.cuenta-av-grande{
-  width:44px;height:44px;border-radius:13px;flex:none;display:grid;place-items:center;
-  background:var(--brand);color:#fff;font-weight:800;font-size:17px;
-}
-.firma.cuenta{
-  margin:4px 0 0;padding:12px 0 0;text-align:center;font-size:11px;
-  color:var(--muted);border-top:1px solid var(--line-2);
-}
-.firma.cuenta b{color:var(--ink-2);font-weight:750}
-.sync-chip.trabajando{background:var(--blue-soft);border-color:var(--blue-line);color:var(--blue)}
-.sync-chip.pendiente{background:var(--brand-soft);border-color:var(--brand-line);color:var(--brand-ink)}
-
 .cloud-warn{flex-wrap:wrap}
   .cloud-warn .btn{margin-left:0;width:100%;margin-top:4px}
   .cloud-state{padding:11px 13px}
