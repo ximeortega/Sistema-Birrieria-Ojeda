@@ -2183,9 +2183,15 @@ function renderAdminNegocio() {
         <div class="card-sub">Estas acciones no se pueden deshacer. Descarga un respaldo antes.</div></div>
         ${icon('alert', 20)}</div>
       <div class="actions">
+        <button class="btn btn-danger" onclick="limpiarAnteriores()">
+          ${icon('trash', 15)} Borrar lo de días anteriores</button>
         <button class="btn btn-danger" onclick="wipeToday()">Borrar las ${st.orders.length} comandas de hoy</button>
         <button class="btn btn-danger" onclick="wipeAll()">Borrar toda la información</button>
       </div>
+      <p class="muted" style="font-size:12px;margin-top:10px">
+        <b>Borrar lo de días anteriores</b> deja solo lo de hoy: sirve para dejar fuera las
+        pruebas y que las cifras empiecen a contar desde ahora. Se borra también en la nube,
+        así que los demás equipos quedan igual.</p>
     </div>`;
 }
 
@@ -2597,6 +2603,43 @@ function importBackup(input) {
     refresh();
   };
   reader.readAsText(file);
+}
+
+/**
+ * Deja solo lo de hoy. Sirve para sacar los días de prueba sin tocar lo que ya
+ * es del negocio. Al pasar por DB.set, el borrado también viaja a la nube.
+ */
+function limpiarAnteriores() {
+  const hoy = todayKey();
+  const os = allOrders(), ex = DB.get('expenses', []), cu = DB.get('cuts', []);
+  const fuera = {
+    comandas: os.filter((o) => o.date < hoy).length,
+    gastos:   ex.filter((e) => e.date < hoy).length,
+    cortes:   cu.filter((c) => c.date < hoy).length,
+  };
+  const total = fuera.comandas + fuera.gastos + fuera.cortes;
+  if (!total) { toast('No hay nada de días anteriores', 'ok'); return; }
+
+  if (!confirm(
+    `Se va a borrar todo lo anterior a hoy:
+
+` +
+    `· ${fuera.comandas} comanda${fuera.comandas === 1 ? '' : 's'}
+` +
+    `· ${fuera.gastos} gasto${fuera.gastos === 1 ? '' : 's'}
+` +
+    `· ${fuera.cortes} corte${fuera.cortes === 1 ? '' : 's'}
+
+` +
+    `Lo de hoy se queda. También se borra en la nube, para todos los equipos.
+` +
+    `Esto no se puede deshacer: descarga un respaldo si quieres conservarlo.`)) return;
+
+  DB.set('orders',   os.filter((o) => o.date >= hoy));
+  DB.set('expenses', ex.filter((e) => e.date >= hoy));
+  DB.set('cuts',     cu.filter((c) => c.date >= hoy));
+  toast(`${total} registros de prueba borrados`, 'ok');
+  refresh();
 }
 
 function wipeToday() {

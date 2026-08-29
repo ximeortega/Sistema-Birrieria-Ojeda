@@ -117,7 +117,9 @@ Dos cosas nada más:
   En **Excel** baja un archivo por reporte. En **PDF** sale un solo documento con los colores
   del negocio, encabezado, tablas y totales resaltados; el navegador abre el diálogo de
   impresión y ahí se elige *Guardar como PDF*.
-- **Zona de riesgo**: borrar las comandas y gastos de hoy, o borrar toda la información.
+- **Zona de riesgo**: borrar lo de días anteriores (deja solo hoy, útil para sacar las
+  pruebas), borrar las comandas y gastos de hoy, o borrar toda la información. Lo que se borra
+  aquí se borra también en la nube, así que los demás equipos quedan igual.
 
 ## Diseño
 - Panel lateral en rojo de la marca.
