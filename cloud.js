@@ -39,6 +39,7 @@ const Cloud = {
   reintento: null,
   desde: {},               // último updated_at visto por tabla
   latido: null,            // repaso periódico
+  settingsSucio: false,    // hay configuración sin guardar
   realtimeOk: false,       // ¿el aviso instantáneo quedó conectado?
 };
 
@@ -152,6 +153,7 @@ async function cloudInit() {
 
   Cloud.online = true;
   await cloudPullAll();
+  await cloudEmpujarDiferencias();   // lo que se editó sin conexión sube ahora
   cloudListen();
   iniciarLatido();
   engancharDespertares();
@@ -295,7 +297,44 @@ async function cloudRefrescar() {
   }
 
   // Lo que este equipo dejó pendiente se reintenta en el mismo repaso.
-  for (const key of [...Cloud.pendientes]) await cloudSyncArray(key, stateGet(key) || []);
+  for (const key of [...Cloud.pendientes]) {
+    if (key === 'settings') cloudSyncSettings();
+    else await cloudSyncArray(key, stateGet(key) || []);
+  }
+  if (await purgarBorrados()) hubo = true;
+  return hubo;
+}
+
+/**
+ * updated_at no sirve para enterarse de un borrado: la fila ya no está.
+ * Cada minuto se pide solo la lista de identificadores y se quita lo que
+ * otro equipo haya eliminado, respetando lo que aquí falta por subir.
+ */
+let ciclosDesdePurga = 0;
+async function purgarBorrados() {
+  if (++ciclosDesdePurga < 6) return false;
+  ciclosDesdePurga = 0;
+  const c = Cloud.client;
+  if (!c) return false;
+  let hubo = false;
+
+  for (const tabla of TABLAS) {
+    try {
+      const { data, error } = await c.from(tabla).select('id');
+      if (error) throw new Error(error.message);
+      const vivos = new Set((data || []).map((r) => r.id));
+      const sinSubir = sinSubirDe(tabla);
+      const local = stateGet(tabla) || [];
+      const quedan = local.filter((x) => vivos.has(x.id) || sinSubir.has(x.id));
+      if (quedan.length !== local.length) {
+        local.forEach((x) => { if (!vivos.has(x.id) && !sinSubir.has(x.id)) Cloud.espejo[tabla].delete(x.id); });
+        stateSet(tabla, quedan);
+        hubo = true;
+      }
+    } catch (e) {
+      Cloud.error = 'No se pudo revisar borrados en ' + tabla + ': ' + e.message;
+    }
+  }
   return hubo;
 }
 
@@ -427,7 +466,8 @@ function programarReintento() {
   Cloud.reintento = setTimeout(async () => {
     Cloud.reintento = null;
     for (const key of [...Cloud.pendientes]) {
-      await cloudSyncArray(key, stateGet(key) || []);
+      if (key === 'settings') cloudSyncSettings();
+      else await cloudSyncArray(key, stateGet(key) || []);
     }
     if (Cloud.pendientes.size) programarReintento();
   }, 6000);
@@ -436,6 +476,7 @@ function programarReintento() {
 /** Todas las claves de configuración van juntas en una sola fila. */
 let settingsTimer = null;
 function cloudSyncSettings() {
+  Cloud.settingsSucio = true;
   if (!Cloud.client || !Cloud.online) return;
   clearTimeout(settingsTimer);
   // Se agrupa: al cambiar varias opciones seguidas se manda una sola vez.
@@ -446,11 +487,30 @@ function cloudSyncSettings() {
       const owner = Cloud.session && Cloud.session.user && Cloud.session.user.id;
       const { error } = await Cloud.client.from('settings').upsert({ owner, data }, { onConflict: 'owner' });
       if (error) throw new Error(error.message);
+      Cloud.settingsSucio = false;
+      Cloud.pendientes.delete('settings');
       Cloud.error = null;
     } catch (e) {
+      // Igual que las tablas: queda pendiente y se reintenta.
+      Cloud.pendientes.add('settings');
       Cloud.error = 'No se pudo guardar la configuración: ' + e.message;
+      programarReintento();
     }
+    if (typeof onCloudStatus === 'function') onCloudStatus();
   }, 400);
+}
+
+/**
+ * Sube todo lo que este equipo tenga distinto de lo que la nube confirmó.
+ * Cubre lo que se capturó sin internet o antes de entrar al negocio: al
+ * conectar, esos cambios se van solos en vez de quedarse aquí.
+ */
+async function cloudEmpujarDiferencias() {
+  if (!Cloud.client || !Cloud.online) return;
+  for (const key of TABLAS) {
+    if (sinSubirDe(key).size) await cloudSyncArray(key, stateGet(key) || []);
+  }
+  if (Cloud.settingsSucio) cloudSyncSettings();
 }
 
 /** Primera subida: manda lo que ya había en este dispositivo. */

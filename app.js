@@ -446,8 +446,11 @@ async function cloudSubmit() {
     await cloudPushAll();
   } else {
     await cloudPullAll();
+    await cloudEmpujarDiferencias();   // lo capturado antes de conectar sube ahora
   }
   cloudListen();
+  iniciarLatido();
+  engancharDespertares();
   sembrarDefaults();
   applyBranding();
   actualizarEstadoNube();
