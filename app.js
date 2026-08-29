@@ -359,7 +359,6 @@ function abrirSesion(role, saludar) {
   $('#appView').classList.remove('hidden');
   $('#userRoleLabel').textContent = session.label;
   $('#userAvatar').textContent = session.label[0];
-  $('#cuentaAv').textContent = session.label[0];
   applyBranding();
   go(navOf(role)[0][0]);
   if (saludar) toast('Bienvenido, ' + session.label, 'ok');
@@ -2453,7 +2452,6 @@ function saveProfile(id) {
     session.label = label;
     $('#userRoleLabel').textContent = label;
     $('#userAvatar').textContent = label[0];
-    $('#cuentaAv').textContent = label[0];
   }
   closeModal();
   toast('Perfil actualizado', 'ok');
