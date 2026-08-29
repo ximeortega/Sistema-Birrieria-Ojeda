@@ -44,6 +44,31 @@ function marcarSincronizado(key, filas) {
   Cloud.espejo[key] = new Map((filas || []).map((x) => [x.id, JSON.stringify(x)]));
 }
 
+/**
+ * Une lo que llega de la nube con lo que este equipo cambió y todavía no sube.
+ * Sin esto, un aviso de tiempo real que llegue justo después de editar un precio
+ * pisaría el cambio con el valor viejo antes de que alcance a guardarse.
+ */
+function sinSubirDe(key) {
+  const local = (typeof stateGet === 'function' && stateGet(key)) || [];
+  const confirmado = Cloud.espejo[key] || new Map();
+  const pend = new Map();
+  local.forEach((x) => {
+    if (confirmado.get(x.id) !== JSON.stringify(x)) pend.set(x.id, x);
+  });
+  return pend;
+}
+
+function fusionarConPendientes(key, filasNube) {
+  const sinSubir = sinSubirDe(key);
+  if (!sinSubir.size) return filasNube;
+
+  const enLaNube = new Set(filasNube.map((f) => f.id));
+  const unido = filasNube.map((f) => (sinSubir.has(f.id) ? sinSubir.get(f.id) : f));
+  sinSubir.forEach((v, id) => { if (!enLaNube.has(id)) unido.push(v); });
+  return unido;
+}
+
 /* ---------- Configuración guardada en este dispositivo ------------------ */
 /**
  * Deja solo la dirección del proyecto. En el panel de Supabase la URL aparece
@@ -203,7 +228,10 @@ async function cloudPullAll() {
       expenses: (ex.data || []).map(filaAGasto),
       cuts:     (cu.data || []).map(filaACorte),
     };
-    Object.keys(bajado).forEach((k) => { stateSet(k, bajado[k]); marcarSincronizado(k, bajado[k]); });
+    Object.keys(bajado).forEach((k) => {
+      marcarSincronizado(k, bajado[k]);              // lo de la nube queda confirmado
+      stateSet(k, fusionarConPendientes(k, bajado[k]));  // sin perder lo que falta subir
+    });
 
     const ajustes = (se.data && se.data.data) || {};
     SETTING_KEYS.forEach((k) => { if (ajustes[k] !== undefined) stateSet(k, ajustes[k]); });
@@ -228,8 +256,12 @@ async function cloudPullTable(tabla) {
     if (error) throw new Error(error.message);
     const mapa = { products: filaAProducto, orders: filaAOrden, expenses: filaAGasto, cuts: filaACorte };
     const filas = (data || []).map(mapa[tabla]);
-    stateSet(tabla, filas);
+    const habiaPendientes = sinSubirDe(tabla).size > 0;
+    const unido = fusionarConPendientes(tabla, filas);
     marcarSincronizado(tabla, filas);
+    stateSet(tabla, unido);
+    // Lo que este equipo tenía sin subir se aprovecha para mandarlo ahora.
+    if (habiaPendientes || Cloud.pendientes.has(tabla)) await cloudSyncArray(tabla, unido);
   } catch (e) {
     Cloud.error = 'No se pudo actualizar ' + tabla + ': ' + e.message;
   }
