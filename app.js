@@ -207,6 +207,8 @@ const allOrders   = () => DB.get('orders', []);
 const dayOrders   = (k = todayKey()) => allOrders().filter((o) => o.date === k);
 const dayExpenses = (k = todayKey()) => DB.get('expenses', []).filter((e) => e.date === k);
 const envioDe     = (o) => Number((o && o.delivery && o.delivery.fee) || 0);
+/** Propina: lo que se recibió de más. No es venta del negocio, va aparte. */
+const propinaDe   = (o) => Number((o && o.payment && o.payment.tip) || 0);
 const orderItems$ = (o) => o.items.reduce((s, i) => s + i.price * i.qty, 0);
 /** Lo que se cobra: los productos más el envío, si es a domicilio. */
 const orderTotal  = (o) => orderItems$(o) + envioDe(o);
@@ -1406,6 +1408,7 @@ function viewOrder(id) {
         <div class="kv"><span>Servicio a domicilio</span><b>${money(envioDe(o))}</b></div>` : ''}
       <div class="total-line"><span>Total</span><b>${money(orderTotal(o))}</b></div>
       ${o.payment ? `<div class="kv"><span>Pago (${esc(o.payment.method)})</span><b>${money(o.payment.received)}</b></div>
+        ${propinaDe(o) ? `<div class="kv"><span>Propina</span><b>${money(propinaDe(o))}</b></div>` : ''}
         <div class="kv"><span>Cambio</span><b>${money(o.payment.change)}</b></div>
         <div class="kv"><span>Hora de cobro</span><b>${esc(o.payment.time)}</b></div>` : ''}
     </div>
@@ -1476,7 +1479,8 @@ function mensajeComanda(o) {
   L.push(`*TOTAL: ${money(orderTotal(o))}*`);
   if (o.paid && o.payment) {
     L.push(`Pagado con ${o.payment.method.toLowerCase()}` +
-      (o.payment.change > 0 ? ` · cambio ${money(o.payment.change)}` : ''));
+      (o.payment.change > 0 ? ` · cambio ${money(o.payment.change)}` : '') +
+      (propinaDe(o) ? ` · propina ${money(propinaDe(o))}` : ''));
   } else {
     L.push('_Pendiente de cobro_');
   }
@@ -1648,6 +1652,7 @@ function imprimirTicket(oid) {
 
   ${pg ? `<div class="sep"></div>
     ${linea(esc(pg.method), money(pg.received))}
+    ${pg.tip > 0 ? linea('Propina', money(pg.tip)) : ''}
     ${pg.change > 0 ? linea('Cambio', money(pg.change)) : ''}
     <div class="datos"><div><span>Cobró</span><span>${esc(pg.cashier || '')} · ${esc(pg.time || '')}</span></div></div>`
    : `<div class="sep"></div><div class="ln"><span>Pendiente de cobro</span><b></b></div>`}
@@ -1849,7 +1854,7 @@ function openPayment(oid) {
   const o = allOrders().find((x) => x.id === oid);
   if (!o) return;
   const total = orderTotal(o);
-  payDraft = { orderId:oid, total, method:'Efectivo', raw:'' };
+  payDraft = { orderId:oid, total, method:'Efectivo', raw:'', propina:false };
 
   openModal(`${modalHead('Cobro · comanda #' + o.folio, o.table)}
     <div class="modal-body pay-body">
@@ -1874,8 +1879,8 @@ function openPayment(oid) {
         </div>
 
         <div id="cashBlock">
-          <div class="pay-step"><i class="pay-step-n">2</i> ¿Con cuánto paga?</div>
-          <div class="cash-quick">
+          <div class="pay-step"><i class="pay-step-n">2</i> <span id="pasoDos">¿Con cuánto paga?</span></div>
+          <div class="cash-quick" id="cashQuick">
             ${quickCash(total).map((v) => `<button onclick="setCash(${v})">${v === total ? 'Exacto' : money(v)}</button>`).join('')}
           </div>
           <div class="cash-display" id="cashDisplay">$0</div>
@@ -1899,51 +1904,92 @@ function openPayment(oid) {
 function setMethod(m) {
   payDraft.method = m;
   payDraft.raw = '';
+  payDraft.propina = false;
   $$('#payMethods button').forEach((b) => b.classList.toggle('on', b.dataset.m === m));
-  const cash = $('#cashBlock');
-  cash.style.display = m === 'Efectivo' ? '' : 'none';
-  cash.parentElement.classList.toggle('solo', m !== 'Efectivo');
+
+  const efectivo = m === 'Efectivo';
+  // Los billetes solo tienen sentido con dinero en mano.
+  $('#cashQuick').style.display = efectivo ? '' : 'none';
+  $('#pasoDos').textContent = efectivo ? '¿Con cuánto paga?' : `¿Cuánto ${m === 'Tarjeta' ? 'se cargó' : 'transfirieron'}?`;
   syncPayment();
 }
 function payKey(d) { if (payDraft.raw.length < 6) payDraft.raw += d; syncPayment(); }
 function payBack() { payDraft.raw = payDraft.raw.slice(0, -1); syncPayment(); }
 function setCash(v) { payDraft.raw = String(v); syncPayment(); }
 
-/** Refresca importe recibido, cambio y el botón de confirmar. */
-function syncPayment() {
+/** Lo que se recibió, según lo capturado y la forma de pago. */
+function montoRecibido() {
   const efectivo = payDraft.method === 'Efectivo';
-  const recibido = efectivo ? Number(payDraft.raw || 0) : payDraft.total;
-  const falta = payDraft.total - recibido;
+  // Si no capturan nada con tarjeta o transferencia, se asume el importe justo.
+  if (payDraft.raw === '') return efectivo ? 0 : payDraft.total;
+  return Number(payDraft.raw || 0);
+}
+
+/**
+ * Reparte lo que sobra. Con tarjeta o transferencia no hay cambio que
+ * devolver, así que lo de más es propina. En efectivo es cambio, salvo que
+ * el cliente diga que se lo queden.
+ */
+function repartoPago() {
+  const efectivo = payDraft.method === 'Efectivo';
+  const recibido = montoRecibido();
+  const sobra = recibido - payDraft.total;
+  const falta = sobra < 0 ? -sobra : 0;
+  const propina = falta ? 0 : (efectivo ? (payDraft.propina ? sobra : 0) : sobra);
+  const cambio = falta || !efectivo ? 0 : sobra - propina;
+  return { efectivo, recibido, falta, propina, cambio };
+}
+
+/** Refresca importe recibido, cambio o propina, y el botón de confirmar. */
+function syncPayment() {
+  const r = repartoPago();
   const box = $('#changeBox'), btn = $('#payConfirm');
 
-  if ($('#cashDisplay')) $('#cashDisplay').textContent = money(recibido);
+  if ($('#cashDisplay')) $('#cashDisplay').textContent = money(r.recibido);
 
-  if (!efectivo) {
-    box.className = 'change-box';
-    box.innerHTML = `<span>Pago con ${esc(payDraft.method.toLowerCase())}</span><b>Sin cambio</b>`;
-  } else if (falta > 0) {
+  if (r.falta) {
     box.className = 'change-box err';
-    box.innerHTML = `<span>Falta por recibir</span><b>${money(falta)}</b>`;
-  } else {
+    box.innerHTML = `<span>Falta por recibir</span><b>${money(r.falta)}</b>`;
+  } else if (r.propina && !r.cambio) {
+    box.className = 'change-box propina';
+    box.innerHTML = `<span>Propina</span><b>${money(r.propina)}</b>`;
+  } else if (r.cambio) {
     box.className = 'change-box ok';
-    box.innerHTML = `<span>Cambio a devolver</span><b>${money(-falta)}</b>`;
+    box.innerHTML = `<span>Cambio a devolver</span><b>${money(r.cambio)}</b>` +
+      `<button class="btn-propina" onclick="marcarPropina(true)">Es propina</button>`;
+  } else if (r.propina) {
+    box.className = 'change-box propina';
+    box.innerHTML = `<span>Propina</span><b>${money(r.propina)}</b>`;
+  } else {
+    box.className = 'change-box';
+    box.innerHTML = `<span>${r.efectivo ? 'Pago exacto' : 'Pago con ' + esc(payDraft.method.toLowerCase())}</span><b>Sin cambio</b>`;
   }
-  btn.disabled = efectivo && falta > 0;
+
+  // Con efectivo se puede regresar la propina a cambio.
+  if (r.efectivo && r.propina) {
+    box.innerHTML += `<button class="btn-propina" onclick="marcarPropina(false)">Devolver cambio</button>`;
+  }
+  btn.disabled = r.falta > 0;
 }
+
+function marcarPropina(si) { payDraft.propina = !!si; syncPayment(); }
 
 function completePayment() {
   const { orderId, total, method } = payDraft;
-  const recibido = method === 'Efectivo' ? Number(payDraft.raw || 0) : total;
-  if (method === 'Efectivo' && recibido < total) { toast('El efectivo recibido es menor al total', 'err'); return; }
+  const r = repartoPago();
+  if (r.falta) { toast('Falta por recibir ' + money(r.falta), 'err'); return; }
+
   const os = allOrders(), o = os.find((x) => x.id === orderId);
   o.paid = true;
   o.payment = {
-    method, received:recibido, change:recibido - total,
-    time:hourMin(), at:new Date().toISOString(), cashier:session.label,
+    method, received:r.recibido, change:r.cambio, tip:r.propina,
+    time: hourMin(), at:new Date().toISOString(), cashier:session.label,
   };
   DB.set('orders', os);
   closeModal();
-  toast(recibido > total ? `Cobrado · cambio ${money(recibido - total)}` : 'Cobro registrado', 'ok');
+  toast(r.propina ? `Cobrado · propina ${money(r.propina)}`
+      : r.cambio  ? `Cobrado · cambio ${money(r.cambio)}`
+                  : 'Cobro registrado', 'ok');
   refresh();
 }
 
@@ -2066,10 +2112,19 @@ function deleteExpense(id) {
 function cutNumbers(k = todayKey()) {
   const st = dayStats(k);
   const fund = getFund(k);
-  const cashSales = st.paid
-    .filter((o) => (o.payment && o.payment.method || 'Efectivo') === 'Efectivo')
-    .reduce((s, o) => s + orderTotal(o), 0);
-  return { ...st, fund, cashSales, cardSales: st.sales - cashSales, expected: fund + cashSales - st.spent };
+  const enEfectivo = (o) => (o.payment && o.payment.method || 'Efectivo') === 'Efectivo';
+  const cashSales = st.paid.filter(enEfectivo).reduce((s, o) => s + orderTotal(o), 0);
+
+  // Las propinas no son venta del negocio, pero las de efectivo sí están
+  // físicamente en la caja: si no se cuentan, el corte sale con sobrante.
+  const tips = st.paid.reduce((s, o) => s + propinaDe(o), 0);
+  const tipsCash = st.paid.filter(enEfectivo).reduce((s, o) => s + propinaDe(o), 0);
+
+  return {
+    ...st, fund, cashSales, cardSales: st.sales - cashSales,
+    tips, tipsCash, tipsCard: tips - tipsCash,
+    expected: fund + cashSales + tipsCash - st.spent,
+  };
 }
 
 function renderCut() {
@@ -2088,6 +2143,7 @@ function renderCut() {
       <div class="divider"></div>
       <div class="kv"><span>Fondo inicial</span><b>${money(c.fund)}</b></div>
       <div class="kv"><span>+ Ventas en efectivo</span><b class="text-green">${money(c.cashSales)}</b></div>
+      ${c.tipsCash ? `<div class="kv"><span>+ Propinas en efectivo</span><b class="text-green">${money(c.tipsCash)}</b></div>` : ''}
       <div class="kv"><span>− Gastos pagados</span><b class="text-red">${money(c.spent)}</b></div>
       <div class="total-line"><span>Efectivo que debe haber</span><b>${money(c.expected)}</b></div>
       <div class="kv" style="margin-top:8px"><span>Diferencia contra lo contado</span><b id="diffPreview">${money(0)}</b></div>
@@ -2143,6 +2199,7 @@ function saveCut() {
     id:uid(), date:todayKey(), dateLabel:dateText(), time:timeText(), closedBy:session.label,
     // Números del cierre
     sales:c.sales, cashSales:c.cashSales, cardSales:c.cardSales, pending:c.pending,
+    tips:c.tips, tipsCash:c.tipsCash, tipsCard:c.tipsCard,
     expenses:c.spent, utility:c.utility,
     initial:c.fund, expected:c.expected, counted, difference:counted - c.expected,
     ordersPaid:c.paid.length, ordersPending:c.open.length, pieces:c.pieces, ticket:c.ticket,
@@ -2181,6 +2238,7 @@ function viewCut(id) {
         <div class="kv"><span>Ticket promedio</span><b>${x.ticket != null ? money(x.ticket) : '—'}</b></div>
         <div class="kv"><span>Cobrado en efectivo</span><b>${money(x.cashSales ?? x.sales)}</b></div>
         <div class="kv"><span>Tarjeta / transferencia</span><b>${money(x.cardSales ?? 0)}</b></div>
+        ${x.tips ? `<div class="kv"><span>Propinas</span><b>${money(x.tips)}</b></div>` : ''}
         <div class="kv"><span>Quedó sin cobrar</span><b>${money(x.pending || 0)}</b></div>
         <div class="kv"><span>Gastos del día</span><b class="text-red">${money(x.expenses)}</b></div>
         <div class="kv"><span>Cerró el corte</span><b>${esc(x.closedBy || '—')}</b></div>
@@ -2902,22 +2960,23 @@ function filasResumen(a, b) {
   ])].filter((d) => enRango(d, a, b)).sort();
 
   const rows = [['Fecha', 'Comandas', 'Tickets cobrados', 'Piezas', 'Ventas cobradas',
-                 'Efectivo', 'Tarjeta y transferencia', 'Sin cobrar', 'Gastos', 'Utilidad', 'Ticket promedio']];
-  let tV = 0, tG = 0, tU = 0;
+                 'Efectivo', 'Tarjeta y transferencia', 'Propinas', 'Sin cobrar', 'Gastos',
+                 'Utilidad', 'Ticket promedio']];
+  let tV = 0, tG = 0, tU = 0, tP = 0;
   dias.forEach((d) => {
     const c = cutNumbers(d);
-    tV += c.sales; tG += c.spent; tU += c.utility;
+    tV += c.sales; tG += c.spent; tU += c.utility; tP += c.tips;
     rows.push([d, c.orders.length, c.paid.length, c.pieces, c.sales,
-      c.cashSales, c.cardSales, c.pending, c.spent, c.utility, c.ticket]);
+      c.cashSales, c.cardSales, c.tips, c.pending, c.spent, c.utility, c.ticket]);
   });
-  if (dias.length) rows.push(['TOTAL', '', '', '', tV, '', '', '', tG, tU, '']);
+  if (dias.length) rows.push(['TOTAL', '', '', '', tV, '', '', tP, '', tG, tU, '']);
   return rows;
 }
 
 function filasVentas(a, b) {
   const rows = [['Fecha', 'Folio', 'Hora', 'Mesa', 'Cliente', 'Teléfono', 'Dirección', 'Entrega',
                  'Envío', 'Lo llevó', 'Piezas', 'Total', 'Estado',
-                 'Forma de pago', 'Recibido', 'Cambio', 'Hora de cobro', 'Cobró', 'Levantó']];
+                 'Forma de pago', 'Recibido', 'Propina', 'Cambio', 'Hora de cobro', 'Cobró', 'Levantó']];
   allOrders().filter((o) => enRango(o.date, a, b))
     .sort((x, y2) => (x.date + x.createdTime).localeCompare(y2.date + y2.createdTime))
     .forEach((o) => {
@@ -2927,7 +2986,7 @@ function filasVentas(a, b) {
         envioDe(o) || '', en.courier || '', orderPieces(o),
         orderTotal(o), statusLabel(orderStatus(o)),
         o.paid ? (pg.method || 'Efectivo') : '', o.paid ? pg.received : '',
-        o.paid ? pg.change : '', pg.time || '', pg.cashier || '', o.waiter || '']);
+        propinaDe(o) || '', o.paid ? pg.change : '', pg.time || '', pg.cashier || '', o.waiter || '']);
     });
   return rows;
 }
@@ -2974,10 +3033,10 @@ function filasCortes(a, b) {
 /** Catálogo de reportes: mismo origen para Excel y para PDF. */
 const REPORTES = [
   { id:'corte',     nombre:'Corte del día',        icono:'wallet',  detalle:'Ventas, efectivo y diferencia de hoy' },
-  { id:'resumen',   nombre:'Resumen por día',      icono:'chart',   filas:filasResumen,   dinero:[4,5,6,7,8,9,10],
-    pdfCols:[0,1,3,4,8,9], detalle:'Una fila por día del periodo' },
-  { id:'ventas',    nombre:'Ventas por comanda',   icono:'receipt', filas:filasVentas,    dinero:[8,11,14,15],
-    // El Excel lleva las 19 columnas; en papel solo caben las de lectura.
+  { id:'resumen',   nombre:'Resumen por día',      icono:'chart',   filas:filasResumen,   dinero:[4,5,6,7,8,9,10,11],
+    pdfCols:[0,1,3,4,7,9,10], detalle:'Una fila por día del periodo' },
+  { id:'ventas',    nombre:'Ventas por comanda',   icono:'receipt', filas:filasVentas,    dinero:[8,11,14,15,16],
+    // El Excel lleva todas las columnas; en papel solo caben las de lectura.
     pdfCols:[0,1,3,4,10,11,12,13], detalle:'Cada comanda con su total y forma de pago' },
   { id:'productos', nombre:'Productos vendidos',   icono:'box',     filas:filasProductos, dinero:[2],              detalle:'Piezas e importe de cada producto' },
   { id:'gastos',    nombre:'Gastos',               icono:'minus',   filas:filasGastos,    dinero:[5],
@@ -3048,6 +3107,8 @@ function filasCorteDelDia() {
     ['Ventas cobradas', c.sales],
     ['— en efectivo', c.cashSales],
     ['— tarjeta y transferencia', c.cardSales],
+    ['Propinas del día', c.tips],
+    ['— en efectivo', c.tipsCash],
     ['Sin cobrar', c.pending],
     ['Gastos del día', c.spent],
     ['Utilidad', c.utility],
@@ -3092,13 +3153,14 @@ function corteEnPDF() {
       ${tarjeta('Ventas cobradas', c.sales, 'oscura')}
       ${tarjeta('Gastos', c.spent, 'roja')}
       ${tarjeta('Utilidad', c.utility, 'verde')}
-      ${tarjeta('Sin cobrar', c.pending)}
+      ${tarjeta(c.tips ? 'Propinas' : 'Sin cobrar', c.tips || c.pending)}
     </div>
     <table>
       <tbody>
         <tr><td>Fondo inicial</td><td class="num">${money(c.fund)}</td></tr>
         <tr><td>+ Ventas en efectivo</td><td class="num">${money(c.cashSales)}</td></tr>
         <tr><td>+ Tarjeta y transferencia</td><td class="num">${money(c.cardSales)}</td></tr>
+        ${c.tipsCash ? `<tr><td>+ Propinas en efectivo</td><td class="num">${money(c.tipsCash)}</td></tr>` : ''}
         <tr><td>− Gastos</td><td class="num">${money(c.spent)}</td></tr>
         <tr class="total"><td>Efectivo que debe haber</td><td class="num">${money(c.expected)}</td></tr>
         <tr><td>Comandas levantadas</td><td class="num">${c.orders.length}</td></tr>

@@ -632,7 +632,7 @@ small{font-size:12px}
 .cash-quick button:hover{border-color:var(--brand);color:var(--brand-ink);background:var(--brand-soft)}
 .change-box{
   background:var(--ink);color:#fff;border-radius:var(--r);padding:18px 20px;
-  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
 }
 .change-box span{font-size:13px;color:rgba(255,255,255,.6);font-weight:650}
 .change-box b{font-size:32px;font-weight:820;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
@@ -716,6 +716,13 @@ small{font-size:12px}
 .cash-quick{grid-template-columns:repeat(2,1fr);gap:6px}
 .cash-quick button{padding:10px 6px;font-size:13.5px}
 .change-box.ok{background:var(--green)}
+.change-box.propina{background:#1d6f42}
+.change-box.propina span{color:rgba(255,255,255,.78)}
+.btn-propina{
+  margin-left:auto;padding:7px 12px;border-radius:999px;flex:none;
+  background:rgba(255,255,255,.2);color:#fff;font-size:12px;font-weight:700;transition:.14s;
+}
+.btn-propina:hover{background:rgba(255,255,255,.32)}
 .change-box.ok span{color:rgba(255,255,255,.72)}
 .change-box.err{background:var(--brand-700)}
 

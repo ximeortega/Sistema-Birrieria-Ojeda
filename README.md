@@ -64,6 +64,14 @@ estados, *en cocina* y *lista para cobrar*.
 
 ### Caja
 - Pedidos ordenados poniendo primero los que ya salieron de cocina.
+- **Propinas**: si se recibe de más, el sistema lo reparte según la forma de pago.
+  Con **tarjeta o transferencia** no hay cambio que devolver, así que ese sobrante entra
+  como **propina** automáticamente (una cuenta de $850 con una transferencia de $900 deja
+  $50 de propina). En **efectivo** lo de más es cambio, con un botón para dejarlo como propina
+  si el cliente lo dice.
+  La propina **no cuenta como venta** —es de quien atiende, no del negocio— pero las de efectivo
+  sí se suman al efectivo que debe haber en caja, para que el corte cuadre. Aparecen en el
+  ticket, en el corte y en los reportes.
 - Cobro en tres pasos claros: **total en grande → forma de pago → con cuánto paga**,
   con teclado numérico en pantalla (no hace falta teclado físico en la tablet),
   botones de billete rápido y el cambio a devolver en un recuadro verde.
