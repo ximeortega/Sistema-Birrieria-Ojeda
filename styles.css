@@ -791,6 +791,10 @@ small{font-size:12px}
   color:var(--muted);
 }
 .sub-titulo .ic{color:var(--brand-ink)}
+.al-momento{
+  margin-left:auto;font-style:normal;font-size:10.5px;font-weight:650;
+  letter-spacing:0;text-transform:none;color:var(--muted);
+}
 .kv.sangria span{padding-left:26px;font-size:12.5px;color:var(--muted)}
 .kv.sangria b{font-weight:700;color:var(--ink-2)}
 

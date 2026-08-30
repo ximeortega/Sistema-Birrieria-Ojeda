@@ -613,9 +613,11 @@ setInterval(() => {
   if (dd) dd.textContent = dateText(d);
 }, 1000);
 
-// Refresco automático de cocina (para los cronómetros), sin interrumpir capturas.
+// Refresco automático de cocina (cronómetros) y del corte (dinero que va
+// entrando), sin interrumpir a nadie que esté capturando.
 setInterval(() => {
-  if (session && currentPage === 'kitchen' && !$('#modalRoot').innerHTML && !$('#sheetRoot').innerHTML) refresh();
+  if (!session || $('#modalRoot').innerHTML || $('#sheetRoot').innerHTML) return;
+  if (currentPage === 'kitchen' || currentPage === 'cut') refresh();
 }, 20000);
 
 /* =========================================================================
@@ -2289,7 +2291,8 @@ function renderCut() {
         <div class="field"><label>Fondo inicial de hoy</label>
           <input id="initialFund" type="number" inputmode="numeric" value="${c.fund}" onchange="updateDayFund(this.value)"></div>
         <div class="field"><label>Efectivo contado en caja</label>
-          <input id="countedCash" type="number" inputmode="numeric" placeholder="0" class="big-amount" oninput="previewDifference(${c.expected})"></div>
+          <input id="countedCash" type="number" inputmode="numeric" placeholder="0" class="big-amount"
+                 value="${esc(contadoDia)}" oninput="contadoCambio(this.value, ${c.expected})"></div>
       </div>
 
       <div class="dos-cajas">
@@ -2332,7 +2335,8 @@ function renderCut() {
         <div class="gt-todo"><span>Debes tener en total</span><b>${money(c.totalEsperado)}</b></div>
       </div>
 
-      <div class="sub-titulo">${icon('chart', 15)} Total del día</div>
+      <div class="sub-titulo">${icon('chart', 15)} Total del día
+        <i class="al-momento">al momento · ${hourMin()}</i></div>
       <div class="resumen-fila">
         <div><span>Venta cobrada</span><b>${money(c.sales)}</b>
           ${(() => {
@@ -2342,8 +2346,19 @@ function renderCut() {
             return partes.length > 1 ? `<small>${partes.join(' + ')}</small>` : '';
           })()}
         </div>
-        ${c.tips ? `<div><span>Propinas</span><b>${money(c.tips)}</b></div>` : ''}
-        ${c.pending ? `<div><span>Sin cobrar</span><b class="text-red">${money(c.pending)}</b></div>` : ''}
+        <div><span>Propinas</span><b>${money(c.tips)}</b>
+          ${c.tips && c.tipsCash && c.tipsCard
+            ? `<small>${money(c.tipsCash)} efectivo + ${money(c.tipsCard)} transferencia</small>` : ''}
+        </div>
+        <div><span>Sin cobrar</span><b class="${c.pending ? 'text-red' : ''}">${money(c.pending)}</b>
+          ${c.pending ? `<small>${c.open.length} comanda${c.open.length === 1 ? '' : 's'} abierta${c.open.length === 1 ? '' : 's'}</small>` : ''}
+        </div>
+        <div><span>Gastos del día</span><b class="${c.spent ? 'text-red' : ''}">${money(c.spent)}</b>
+          ${c.spent ? `<small>${c.expenses.length} gasto${c.expenses.length === 1 ? '' : 's'} registrado${c.expenses.length === 1 ? '' : 's'}</small>` : ''}
+        </div>
+        <div><span>Utilidad</span><b class="${c.utility >= 0 ? 'text-green' : 'text-red'}">${money(c.utility)}</b>
+          <small>venta − gastos</small>
+        </div>
       </div>
 
       <button class="btn btn-primary btn-lg full" style="margin-top:14px" onclick="saveCut()">
@@ -2383,6 +2398,9 @@ function renderCut() {
         </tr>`).join('')}</tbody></table></div></div>`
       : `<div class="empty"><div class="em-ic">${icon('chart', 22)}</div>
           <strong>Todavía no hay cortes</strong>Guarda el primero al cerrar el día.</div>`}`;
+
+  // Si ya se había contado el efectivo, la diferencia vuelve a pintarse sola.
+  if (contadoDia !== '') previewDifference(c.expected);
 }
 
 /** "sábado 28 de agosto" a partir de la fecha guardada. */
@@ -2394,6 +2412,14 @@ function cutDayLabel(x) {
 
 /** Cambia el fondo del día que se está cortando, sin tocar los días anteriores. */
 function updateDayFund(v) { setFund(v); renderCut(); }
+/** Lo que se lleva contado, para que un refresco automático no lo borre. */
+let contadoDia = '';
+
+function contadoCambio(valor, expected) {
+  contadoDia = valor;
+  previewDifference(expected);
+}
+
 function previewDifference(expected) {
   const n = Number($('#countedCash').value || 0);
   const d = n - expected;
@@ -2427,6 +2453,7 @@ function saveCut() {
     })),
   });
   DB.set('cuts', cuts);
+  contadoDia = '';
   toast('Corte guardado', 'ok');
   renderCut();
 }
