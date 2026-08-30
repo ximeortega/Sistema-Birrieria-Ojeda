@@ -2596,8 +2596,9 @@ function renderAdminEquipos() {
         <p class="muted" style="font-size:13px">Consultando…</p>
       </div>
       <p class="muted" style="font-size:12.5px;margin-top:12px">
-        Cada celular o tableta que abre el link aparece aquí por separado, aunque varias
-        personas entren con el mismo perfil. Ponle el nombre de quien lo usa para reconocerlo.</p>
+        Aquí están todos los celulares y tabletas que han abierto el link, sigan o no
+        adentro. Cada aparato va por separado, aunque varias personas entren con el mismo
+        perfil. Ponle el nombre de quien lo usa para reconocerlo.</p>
     </div>`;
 
   cargarEquipos();
@@ -2606,15 +2607,26 @@ function renderAdminEquipos() {
 /** "30 ago" — para decir desde cuándo un equipo abre el sistema. */
 const diaCorto = (iso) => new Date(iso).toLocaleDateString('es-MX', { day:'numeric', month:'short' });
 
-/** Cuánto hace que se usó un equipo, en palabras. */
+/**
+ * Cuándo se usó un equipo, dicho como lo diría una persona: "Activo ahora",
+ * "hace 20 min", "ayer 8:30 p.m.", "el 25 ago". El grupo sirve para
+ * acomodarlos por bloques en la lista.
+ */
 function haceCuanto(iso) {
   const min = minutesSince(iso);
-  if (min < 2) return { texto:'Activo ahora', clase:'ahora' };
-  if (min < 60) return { texto:`hace ${min} min`, clase:'reciente' };
-  const h = Math.floor(min / 60);
-  if (h < 24) return { texto:`hace ${h} ${h === 1 ? 'hora' : 'horas'}`, clase:'reciente' };
-  const d = Math.floor(h / 24);
-  return { texto:`hace ${d} ${d === 1 ? 'día' : 'días'}`, clase:'viejo' };
+  if (min < 2)  return { texto:'Activo ahora',      clase:'ahora',    grupo:'ahora' };
+  if (min < 60) return { texto:`hace ${min} min`,   clase:'reciente', grupo:'ahora' };
+
+  const d = new Date(iso);
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const suDia = new Date(d); suDia.setHours(0, 0, 0, 0);
+  const dias = Math.round((hoy - suDia) / 86400000);
+  const hora = hourMin(d);
+
+  if (dias <= 0)  return { texto:`hoy ${hora}`,        clase:'reciente', grupo:'hoy' };
+  if (dias === 1) return { texto:`ayer ${hora}`,       clase:'viejo',    grupo:'antes' };
+  if (dias < 7)   return { texto:`hace ${dias} días`,  clase:'viejo',    grupo:'antes' };
+  return { texto:`el ${diaCorto(iso)}`,                clase:'viejo',    grupo:'antes' };
 }
 
 /** Pinta la lista de equipos; se consulta aparte porque viene de la nube. */
@@ -2644,7 +2656,7 @@ async function cargarEquipos() {
   resumirEquipos(r.lista);
 
   const yo = idDispositivo();
-  caja.innerHTML = r.lista.map((d) => {
+  const pintar = (d) => {
     const cuando = haceCuanto(d.last_seen);
     const esteEquipo = d.id === yo;
     const movil = ['iPhone', 'Android'].includes(d.plataforma);
@@ -2669,6 +2681,14 @@ async function cargarEquipos() {
                 onclick="quitarEquipo('${esc(d.id)}')">${icon('trash', 14)}</button>`}
       </div>
     </div>`;
+  };
+
+  // Todos los que alguna vez abrieron el link, en bloques para no revolverlos.
+  const BLOQUES = [['ahora', 'Abiertos ahora'], ['hoy', 'Más temprano hoy'], ['antes', 'Días pasados']];
+  caja.innerHTML = BLOQUES.map(([g, titulo]) => {
+    const suyos = r.lista.filter((d) => haceCuanto(d.last_seen).grupo === g);
+    if (!suyos.length) return '';
+    return `<div class="eq-bloque">${esc(titulo)} <i>${suyos.length}</i></div>` + suyos.map(pintar).join('');
   }).join('');
 }
 

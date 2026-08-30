@@ -850,6 +850,15 @@ small{font-size:12px}
 .cloud-msg.warn{background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber-line)}
 
 .equipos-lista{display:grid;gap:9px}
+.eq-bloque{
+  display:flex;align-items:center;gap:7px;margin:6px 2px 1px;
+  font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+}
+.eq-bloque:first-child{margin-top:0}
+.eq-bloque i{
+  font-style:normal;letter-spacing:0;padding:1px 6px;border-radius:999px;
+  background:var(--line-2);color:var(--ink-2);font-size:10.5px;
+}
 .equipo{
   display:flex;align-items:center;gap:12px;padding:12px 14px;
   border:1px solid var(--line);border-radius:var(--r);background:var(--surface);
@@ -876,7 +885,7 @@ small{font-size:12px}
 .equipo.ahora .eq-estado{color:var(--green)}
 .equipo.ahora .eq-punto{background:var(--green);box-shadow:0 0 0 3px var(--green-soft)}
 .equipo.reciente .eq-punto{background:var(--amber)}
-.equipo.viejo{opacity:.6}
+.equipo.viejo{opacity:.72}
 
 .profile-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
 .profile-card{
@@ -1112,6 +1121,15 @@ small{font-size:12px}
 @media(max-width:900px){
   .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
   .equipos-lista{display:grid;gap:9px}
+.eq-bloque{
+  display:flex;align-items:center;gap:7px;margin:6px 2px 1px;
+  font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+}
+.eq-bloque:first-child{margin-top:0}
+.eq-bloque i{
+  font-style:normal;letter-spacing:0;padding:1px 6px;border-radius:999px;
+  background:var(--line-2);color:var(--ink-2);font-size:10.5px;
+}
 .equipo{
   display:flex;align-items:center;gap:12px;padding:12px 14px;
   border:1px solid var(--line);border-radius:var(--r);background:var(--surface);
@@ -1138,7 +1156,7 @@ small{font-size:12px}
 .equipo.ahora .eq-estado{color:var(--green)}
 .equipo.ahora .eq-punto{background:var(--green);box-shadow:0 0 0 3px var(--green-soft)}
 .equipo.reciente .eq-punto{background:var(--amber)}
-.equipo.viejo{opacity:.6}
+.equipo.viejo{opacity:.72}
 
 .profile-grid{grid-template-columns:1fr}
   .table-pick{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}
