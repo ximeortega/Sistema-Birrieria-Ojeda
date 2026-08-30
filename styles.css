@@ -98,6 +98,8 @@ small{font-size:12px}
 .btn-amber:hover{background:#8f5900}
 .btn-ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.5)}
 .btn-ghost:hover{background:#fff;color:var(--brand-ink);border-color:#fff}
+.btn-borrar{background:var(--surface);color:var(--muted);border-color:var(--line)}
+.btn-borrar:hover{background:var(--brand-soft);color:var(--brand-ink);border-color:var(--brand-line)}
 .btn-wa{background:#25d366;color:#0b3b1e}
 .btn-wa:hover{background:#1fbb59}
 .btn-danger{background:#fff;color:var(--brand-ink);border-color:var(--brand-line)}

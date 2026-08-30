@@ -35,6 +35,9 @@ se guardan en el `localStorage` del navegador.
   Se pueden renombrar (*Papá*, *niño*, *mesa chica*) o quitar.
 - Debajo del “+” está el **historial completo del día** con filtros: abiertas, cobradas o
   todas, más el resumen de comandas, piezas, por cobrar y cobrado.
+- **Borrar una comanda** (solo Administrador): botón en cada tarjeta y en el ticket. Avisa si
+  ya estaba cobrada, porque ese dinero deja de contar en el corte y en los reportes. El
+  borrado también viaja a los demás equipos.
 - **Enviar por WhatsApp**: el botón verde de cada comanda abre WhatsApp con el pedido ya
   escrito — cliente, teléfono, dirección, referencias, los productos separados por plato y el
   total. Se puede mandar a quien reparte (si se guardó su número en Ajustes), al teléfono del

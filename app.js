@@ -553,6 +553,7 @@ function renderNav() {
   $$('.nav-btn[data-page]').forEach((el) => (el.onclick = () => go(el.dataset.page)));
 }
 const roleAllowed = (page) => navOf(session && session.role).some((n) => n[0] === page);
+const esAdmin = () => !!session && session.role === 'admin';
 
 /* La pestaña abierta se recuerda en el equipo: recargar en plena corrida no
    debe devolver a nadie al inicio. */
@@ -855,6 +856,7 @@ function orderCard(o) {
     <div class="oc-foot">
       <div class="oc-total">${money(orderTotal(o))}</div>
       <div class="actions">
+        ${esAdmin() ? `<button class="btn btn-borrar btn-sm" title="Borrar comanda" onclick="borrarComanda('${o.id}')">${icon('trash', 15)}</button>` : ''}
         <button class="btn btn-wa btn-sm" title="Enviar por WhatsApp" onclick="enviarWhatsApp('${o.id}')">${icon('users', 15)}</button>
         ${o.paid
           ? `<button class="btn btn-line btn-sm" onclick="viewOrder('${o.id}')">${icon('receipt', 15)} Ticket</button>`
@@ -1304,6 +1306,35 @@ function saveOrder() {
   if (currentPage !== 'orders') go('orders'); else refresh();
 }
 
+/**
+ * Borrar una comanda. Solo el administrador: una comanda cobrada sostiene el
+ * corte del día, así que quitarla mueve las cifras.
+ */
+function borrarComanda(id) {
+  if (!esAdmin()) { toast('Solo el administrador puede borrar comandas', 'err'); return; }
+  const o = allOrders().find((x) => x.id === id);
+  if (!o) return;
+
+  const aviso = o.paid
+    ? `Ya está cobrada por ${money(orderTotal(o))}: ese dinero dejará de contar en el corte y en los reportes.`
+    : `Todavía no se cobra${orderStatus(o) !== 'ready' ? ', y cocina la tiene pendiente' : ''}.`;
+
+  if (!confirm(
+    `¿Borrar la comanda #${o.folio} de ${o.table}?
+
+` +
+    `${orderPieces(o)} piezas · ${money(orderTotal(o))}
+` +
+    `${aviso}
+
+` +
+    `Se borra también en los demás equipos y no se puede deshacer.`)) return;
+
+  DB.set('orders', allOrders().filter((x) => x.id !== id));
+  toast(`Comanda #${o.folio} borrada`);
+  refresh();
+}
+
 function viewOrder(id) {
   const o = allOrders().find((x) => x.id === id);
   if (!o) return;
@@ -1328,6 +1359,7 @@ function viewOrder(id) {
         <div class="kv"><span>Hora de cobro</span><b>${esc(o.payment.time)}</b></div>` : ''}
     </div>
     <div class="modal-foot">
+      ${esAdmin() ? `<button class="btn btn-borrar" onclick="closeModal(); borrarComanda('${o.id}')">${icon('trash', 16)} Borrar</button>` : ''}
       <button class="btn btn-wa" onclick="closeModal(); enviarWhatsApp('${o.id}')">${icon('users', 16)} WhatsApp</button>
       <button class="btn btn-line" onclick="imprimirTicket('${o.id}')">${icon('print', 16)} Imprimir</button>
       <button class="btn btn-primary" onclick="closeModal()">Cerrar</button>
