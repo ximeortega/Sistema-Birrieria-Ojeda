@@ -2306,7 +2306,14 @@ function renderCut() {
 
       <div class="sub-titulo">${icon('chart', 15)} Total del día</div>
       <div class="resumen-fila">
-        <div><span>Venta cobrada</span><b>${money(c.sales)}</b></div>
+        <div><span>Venta cobrada</span><b>${money(c.sales)}</b>
+          ${(() => {
+            // De dónde salió esa venta, para no tener que buscarlo arriba.
+            const partes = PAY_METHODS.filter((m) => c.porMetodo[m.id])
+              .map((m) => `${money(c.porMetodo[m.id])} ${m.id.toLowerCase()}`);
+            return partes.length > 1 ? `<small>${partes.join(' + ')}</small>` : '';
+          })()}
+        </div>
         ${c.tips ? `<div><span>Propinas</span><b>${money(c.tips)}</b></div>` : ''}
         ${c.pending ? `<div><span>Sin cobrar</span><b class="text-red">${money(c.pending)}</b></div>` : ''}
       </div>

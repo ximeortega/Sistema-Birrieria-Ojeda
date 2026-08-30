@@ -745,6 +745,10 @@ small{font-size:12px}
 }
 .resumen-fila span{display:block;font-size:11px;color:var(--muted);font-weight:650}
 .resumen-fila b{display:block;font-size:16px;font-weight:820;margin-top:2px;font-variant-numeric:tabular-nums}
+.resumen-fila small{
+  display:block;font-size:10.5px;color:var(--muted);font-weight:650;
+  margin-top:3px;line-height:1.35;
+}
 
 .sub-titulo{
   display:flex;align-items:center;gap:8px;margin:14px 0 4px;
