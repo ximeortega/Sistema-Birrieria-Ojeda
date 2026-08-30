@@ -63,14 +63,15 @@ Pantalla para quien prepara los pedidos para llevar. **La ven todos los perfiles
 - **Listos para salir**: los ya empacados, con quién y a qué hora los empacó. Desde ahí se
   manda el pedido por WhatsApp a quien reparte, se cobra si falta, o se marca **Entregado**.
 - Las comandas de mesa no aparecen: esta pantalla es solo de pedidos para llevar.
-- **Un pedido cobrado sale de la pantalla**, porque el cobro se hace al entregarlo.
+- **No depende del cobro**: quien empaca marca *Empacado* y luego *Entregado*, y con eso el
+  pedido sale de su pantalla. Si ya estaba pagado o no, es cosa de caja.
 
 ### Flujo de una comanda
 1. Se levanta la comanda → entra **al mismo tiempo** a Cocina y a Caja.
 2. Cocina la marca lista → sale de Cocina y se queda esperando en Caja.
    Si es **para llevar**, además aparece en **Empaque**.
 3. Se empaca → pasa a *Listos para salir*, con el aviso de la barra al día.
-4. Se cobra → sale de todas las pantallas y queda en el historial.
+4. Se marca entregado → sale de Empaque. Se cobra → sale de Caja y queda en el historial.
 
 Si se cobra antes de que cocina la marque, también sale de Cocina: solo hay dos
 estados, *en cocina* y *lista para cobrar*.

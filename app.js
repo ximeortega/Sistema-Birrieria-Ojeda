@@ -218,10 +218,11 @@ const esLlevar    = (o) => !!(o && o.delivery);
 const cocinaLista = (o) => !!(o && o.items.length && o.items.every(itemReady));
 const empacado    = (o) => !!(o && o.delivery && o.delivery.packed);
 const entregado   = (o) => !!(o && o.delivery && o.delivery.delivered);
-/** Ya salió de cocina y espera a que lo empaquen. Al cobrarse se da por ido. */
-const porEmpacar  = (o) => esLlevar(o) && cocinaLista(o) && !empacado(o) && !o.paid;
-/** Empacado y todavía en el mostrador. */
-const porSalir    = (o) => esLlevar(o) && empacado(o) && !entregado(o) && !o.paid;
+/* Estas dos no miran el cobro: quien empaca marca "Empacado" y luego
+   "Entregado", y con eso el pedido sale de su pantalla. Si ya estaba pagado o
+   no, es cosa de caja. */
+const porEmpacar  = (o) => esLlevar(o) && cocinaLista(o) && !empacado(o);
+const porSalir    = (o) => esLlevar(o) && empacado(o) && !entregado(o);
 const orderItems$ = (o) => o.items.reduce((s, i) => s + i.price * i.qty, 0);
 /** Lo que se cobra: los productos más el envío, si es a domicilio. */
 const orderTotal  = (o) => orderItems$(o) + envioDe(o);
@@ -1798,7 +1799,7 @@ function renderEmpaque() {
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   const listos = delDia.filter(porSalir)
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-  const enCocina = delDia.filter((o) => esLlevar(o) && !cocinaLista(o) && !o.paid).length;
+  const enCocina = delDia.filter((o) => esLlevar(o) && !cocinaLista(o)).length;
 
   $('#pageContent').innerHTML = `
     <div class="section-head" style="margin-top:0">
