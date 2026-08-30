@@ -2257,11 +2257,19 @@ function cutNumbers(k = todayKey()) {
     cuantas[m] = (cuantas[m] || 0) + 1;
   });
 
+  const tipsCard = tips - tipsCash;
+  const expected = fund + cashSales + tipsCash - st.spent;
+  // Lo que no pasó por la caja: tarjeta y transferencia, con sus propinas.
+  const sinEfectivo = st.sales - cashSales + tipsCard;
+
   return {
     ...st, fund, cashSales, cardSales: st.sales - cashSales,
-    tips, tipsCash, tipsCard: tips - tipsCash,
+    tips, tipsCash, tipsCard,
     porMetodo, propinaMetodo, cuantas,
-    expected: fund + cashSales + tipsCash - st.spent,
+    expected, sinEfectivo,
+    // Todo el dinero del día: lo que debe estar en la caja más lo que
+    // entró por tarjeta y transferencia.
+    totalEsperado: expected + sinEfectivo,
   };
 }
 
@@ -2311,9 +2319,17 @@ function renderCut() {
               </div>
               ${propina ? `<div class="kv sangria"><span>propina</span><b>${money(propina)}</b></div>` : ''}`;
           }).join('')}
-          <div class="total-line"><span>Total sin efectivo</span><b>${money(c.sales - c.cashSales + c.tipsCard)}</b></div>
+          <div class="total-line"><span>Total sin efectivo</span><b>${money(c.sinEfectivo)}</b></div>
         </div>
 
+      </div>
+
+      <div class="gran-total">
+        <div class="gt-parte"><span>En caja</span><b>${money(c.expected)}</b></div>
+        <i class="gt-signo">+</i>
+        <div class="gt-parte"><span>Transferencia y tarjeta</span><b>${money(c.sinEfectivo)}</b></div>
+        <i class="gt-signo">=</i>
+        <div class="gt-todo"><span>Debes tener en total</span><b>${money(c.totalEsperado)}</b></div>
       </div>
 
       <div class="sub-titulo">${icon('chart', 15)} Total del día</div>
@@ -2401,6 +2417,7 @@ function saveCut() {
     porMetodo:c.porMetodo, propinaMetodo:c.propinaMetodo, cuantas:c.cuantas,
     expenses:c.spent, utility:c.utility,
     initial:c.fund, expected:c.expected, counted, difference:counted - c.expected,
+    sinEfectivo:c.sinEfectivo, totalEsperado:c.totalEsperado,
     ordersPaid:c.paid.length, ordersPending:c.open.length, pieces:c.pieces, ticket:c.ticket,
     // Fotografía del día, para poder consultarlo después tal como quedó
     products: topProducts(c.orders, 500),
@@ -2451,8 +2468,16 @@ function viewCut(id) {
         <div class="kv"><span>Fondo inicial</span><b>${money(x.initial)}</b></div>
         <div class="kv"><span>Debía haber</span><b>${money(x.expected)}</b></div>
         <div class="kv"><span>Se contó</span><b>${money(x.counted)}</b></div>
-        <div class="total-line"><span>Diferencia</span>
+        <div class="kv"><span>Diferencia</span>
           <b class="${x.difference === 0 ? 'text-green' : 'text-red'}">${x.difference > 0 ? '+' : ''}${money(x.difference)}</b></div>
+        ${(() => {
+          // Los cortes viejos no lo traen guardado, pero se puede reconstruir.
+          const sinEf = x.sinEfectivo != null ? x.sinEfectivo
+            : (x.cardSales || 0) + (x.tipsCard || 0);
+          const todo = x.totalEsperado != null ? x.totalEsperado : x.expected + sinEf;
+          return `<div class="kv"><span>Transferencia y tarjeta</span><b>${money(sinEf)}</b></div>
+            <div class="total-line"><span>Debía haber en total</span><b>${money(todo)}</b></div>`;
+        })()}
       </div>
 
       <div>
@@ -3612,6 +3637,8 @@ function filasCorteDelDia() {
     ['Utilidad', c.utility],
     ['Fondo inicial', c.fund],
     ['Efectivo que debe haber', c.expected],
+    ['Transferencia y tarjeta', c.sinEfectivo],
+    ['Debe haber en total', c.totalEsperado],
     ['Comandas levantadas', c.orders.length],
     ['Tickets cobrados', c.paid.length],
     ['Piezas vendidas', c.pieces],
