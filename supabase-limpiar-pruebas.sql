@@ -2,9 +2,9 @@
 --  Birriería Ojeda · Borrar los días de prueba
 --  Deja SOLO lo de hoy. Pega esto en Supabase → SQL Editor → Run.
 --
---  Normalmente no hace falta: es más cómodo el botón
---  Ajustes → Zona de riesgo → "Borrar lo de días anteriores".
---  Esto sirve si quieres limpiarlo de un jalón desde la base.
+--  Es la única forma de borrar en bloque: los botones de borrado masivo se
+--  quitaron del sistema para que nadie los toque por accidente durante el
+--  servicio. Las comandas sueltas sí se borran desde la app, como Administrador.
 -- =========================================================================
 
 -- Primero mira qué se va a borrar (esto no borra nada):

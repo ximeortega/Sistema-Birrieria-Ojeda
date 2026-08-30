@@ -124,9 +124,6 @@ Dos cosas nada más:
   texto), columnas al ancho del contenido, filtros y encabezado fijo al desplazar.
   En **PDF** sale un solo documento con portada, secciones y tablas con los mismos colores;
   el navegador abre el diálogo de impresión y ahí se elige *Guardar como PDF*.
-- **Zona de riesgo**: borrar lo de días anteriores (deja solo hoy, útil para sacar las
-  pruebas), borrar las comandas y gastos de hoy, o borrar toda la información. Lo que se borra
-  aquí se borra también en la nube, así que los demás equipos quedan igual.
 
 ## Diseño
 - Panel lateral en rojo de la marca.
