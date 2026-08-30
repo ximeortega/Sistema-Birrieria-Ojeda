@@ -2290,9 +2290,21 @@ function cutNumbers(k = todayKey()) {
   const tips = st.paid.reduce((s, o) => s + propinaDe(o), 0);
   const tipsCash = st.paid.filter(enEfectivo).reduce((s, o) => s + propinaDe(o), 0);
 
+  // Desglose por forma de pago: la tarjeta se cuadra contra el estado de
+  // cuenta y la transferencia contra los comprobantes, no da lo mismo.
+  const porMetodo = {}, propinaMetodo = {}, cuantas = {};
+  PAY_METHODS.forEach((m) => { porMetodo[m.id] = 0; propinaMetodo[m.id] = 0; cuantas[m.id] = 0; });
+  st.paid.forEach((o) => {
+    const m = (o.payment && o.payment.method) || 'Efectivo';
+    porMetodo[m] = (porMetodo[m] || 0) + orderTotal(o);
+    propinaMetodo[m] = (propinaMetodo[m] || 0) + propinaDe(o);
+    cuantas[m] = (cuantas[m] || 0) + 1;
+  });
+
   return {
     ...st, fund, cashSales, cardSales: st.sales - cashSales,
     tips, tipsCash, tipsCard: tips - tipsCash,
+    porMetodo, propinaMetodo, cuantas,
     expected: fund + cashSales + tipsCash - st.spent,
   };
 }
@@ -2302,7 +2314,11 @@ function renderCut() {
   const cuts = [...DB.get('cuts', [])].sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
 
   $('#pageContent').innerHTML = `
-    <div class="card" style="margin-top:0">
+    <div class="grid grid-b" style="margin-top:0">
+    <div class="card">
+      <div class="card-head"><div><div class="card-title">Efectivo en caja</div>
+        <div class="card-sub">Lo que debe haber contra lo que hay.</div></div>
+        ${icon('cash', 20, 'muted')}</div>
       <div class="field-grid two">
         <div class="field"><label>Fondo inicial de hoy</label>
           <input id="initialFund" type="number" inputmode="numeric" value="${c.fund}" onchange="updateDayFund(this.value)"></div>
@@ -2320,6 +2336,33 @@ function renderCut() {
 
       <button class="btn btn-primary btn-lg full" style="margin-top:16px" onclick="saveCut()">
         ${icon('check', 17)} Guardar corte del día</button>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div><div class="card-title">Cómo se cobró</div>
+        <div class="card-sub">Cada forma de pago se cuadra por su lado.</div></div>
+        ${icon('wallet', 20, 'muted')}</div>
+
+      ${PAY_METHODS.map((m) => {
+        const monto = c.porMetodo[m.id] || 0;
+        const n = c.cuantas[m.id] || 0;
+        return `<div class="kv metodo ${monto ? '' : 'vacio'}">
+          <span>${icon(m.icon, 16)} ${m.id}${n ? ` <i class="metodo-n">${n}</i>` : ''}</span>
+          <b>${money(monto)}</b>
+        </div>`;
+      }).join('')}
+      <div class="total-line"><span>Total cobrado</span><b>${money(c.sales)}</b></div>
+
+      ${c.tips ? `
+        <div class="divider"></div>
+        <div class="card-title" style="font-size:14px;margin-bottom:8px">Propinas</div>
+        ${PAY_METHODS.filter((m) => c.propinaMetodo[m.id]).map((m) =>
+          `<div class="kv"><span>${esc(m.id)}</span><b>${money(c.propinaMetodo[m.id])}</b></div>`).join('')}
+        <div class="total-line"><span>Total en propinas</span><b>${money(c.tips)}</b></div>` : ''}
+
+      ${c.pending ? `<div class="divider"></div>
+        <div class="kv"><span>Todavía sin cobrar</span><b class="text-red">${money(c.pending)}</b></div>` : ''}
+    </div>
     </div>
 
     <div class="section-head">
@@ -2370,6 +2413,7 @@ function saveCut() {
     // Números del cierre
     sales:c.sales, cashSales:c.cashSales, cardSales:c.cardSales, pending:c.pending,
     tips:c.tips, tipsCash:c.tipsCash, tipsCard:c.tipsCard,
+    porMetodo:c.porMetodo, propinaMetodo:c.propinaMetodo, cuantas:c.cuantas,
     expenses:c.spent, utility:c.utility,
     initial:c.fund, expected:c.expected, counted, difference:counted - c.expected,
     ordersPaid:c.paid.length, ordersPending:c.open.length, pieces:c.pieces, ticket:c.ticket,
@@ -2406,8 +2450,11 @@ function viewCut(id) {
         <div class="kv"><span>Tickets cobrados</span><b>${x.ordersPaid ?? '—'}</b></div>
         <div class="kv"><span>Piezas vendidas</span><b>${x.pieces != null ? num(x.pieces) : '—'}</b></div>
         <div class="kv"><span>Ticket promedio</span><b>${x.ticket != null ? money(x.ticket) : '—'}</b></div>
-        <div class="kv"><span>Cobrado en efectivo</span><b>${money(x.cashSales ?? x.sales)}</b></div>
-        <div class="kv"><span>Tarjeta / transferencia</span><b>${money(x.cardSales ?? 0)}</b></div>
+        ${x.porMetodo
+          ? Object.keys(x.porMetodo).map((m) =>
+              `<div class="kv"><span>Cobrado con ${esc(m.toLowerCase())}</span><b>${money(x.porMetodo[m])}</b></div>`).join('')
+          : `<div class="kv"><span>Cobrado en efectivo</span><b>${money(x.cashSales ?? x.sales)}</b></div>
+             <div class="kv"><span>Tarjeta / transferencia</span><b>${money(x.cardSales ?? 0)}</b></div>`}
         ${x.tips ? `<div class="kv"><span>Propinas</span><b>${money(x.tips)}</b></div>` : ''}
         <div class="kv"><span>Quedó sin cobrar</span><b>${money(x.pending || 0)}</b></div>
         <div class="kv"><span>Gastos del día</span><b class="text-red">${money(x.expenses)}</b></div>
@@ -3275,10 +3322,9 @@ function filasCorteDelDia() {
   return [
     ['Concepto', 'Importe'],
     ['Ventas cobradas', c.sales],
-    ['— en efectivo', c.cashSales],
-    ['— tarjeta y transferencia', c.cardSales],
+    ...PAY_METHODS.map((m) => ['— con ' + m.id.toLowerCase(), c.porMetodo[m.id] || 0]),
     ['Propinas del día', c.tips],
-    ['— en efectivo', c.tipsCash],
+    ...PAY_METHODS.filter((m) => c.propinaMetodo[m.id]).map((m) => ['— propina con ' + m.id.toLowerCase(), c.propinaMetodo[m.id]]),
     ['Sin cobrar', c.pending],
     ['Gastos del día', c.spent],
     ['Utilidad', c.utility],
@@ -3328,8 +3374,8 @@ function corteEnPDF() {
     <table>
       <tbody>
         <tr><td>Fondo inicial</td><td class="num">${money(c.fund)}</td></tr>
-        <tr><td>+ Ventas en efectivo</td><td class="num">${money(c.cashSales)}</td></tr>
-        <tr><td>+ Tarjeta y transferencia</td><td class="num">${money(c.cardSales)}</td></tr>
+        ${PAY_METHODS.map((m) =>
+          `<tr><td>+ Cobrado con ${esc(m.id.toLowerCase())}</td><td class="num">${money(c.porMetodo[m.id] || 0)}</td></tr>`).join('')}
         ${c.tipsCash ? `<tr><td>+ Propinas en efectivo</td><td class="num">${money(c.tipsCash)}</td></tr>` : ''}
         <tr><td>− Gastos</td><td class="num">${money(c.spent)}</td></tr>
         <tr class="total"><td>Efectivo que debe haber</td><td class="num">${money(c.expected)}</td></tr>

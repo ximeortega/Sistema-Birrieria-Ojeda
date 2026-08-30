@@ -707,6 +707,13 @@ small{font-size:12px}
 .cut-box.dark span{color:rgba(255,255,255,.6)}
 .kv{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--line-2);font-size:13.5px}
 .kv:last-child{border-bottom:0}
+.kv.metodo span{display:flex;align-items:center;gap:8px}
+.kv.metodo .ic{color:var(--muted)}
+.kv.metodo.vacio{opacity:.45}
+.metodo-n{
+  font-style:normal;font-size:10.5px;font-weight:800;padding:1px 6px;border-radius:999px;
+  background:var(--line-2);color:var(--muted);
+}
 .kv b{font-variant-numeric:tabular-nums;font-weight:800}
 .total-line{
   display:flex;justify-content:space-between;align-items:baseline;

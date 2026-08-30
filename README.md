@@ -110,6 +110,10 @@ consultando con el botón *Ver* y se exportan completos.
 ### Corte
 Dos cosas nada más:
 
+- **Cómo se cobró** — cuánto entró por efectivo, tarjeta y transferencia, con cuántos tickets
+  de cada uno y las propinas separadas igual. Así cada forma de pago se cuadra por su lado:
+  el efectivo contra la caja, la tarjeta contra el estado de cuenta y la transferencia contra
+  los comprobantes.
 - **Corte del día** — ventas, gastos, utilidad y el control de efectivo
   (fondo inicial + ventas en efectivo − gastos = lo que debe haber, contra lo contado),
   y el botón para guardarlo.
