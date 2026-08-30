@@ -2251,30 +2251,7 @@ function renderCut() {
   const cuts = [...DB.get('cuts', [])].sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
 
   $('#pageContent').innerHTML = `
-    <div class="grid grid-b" style="margin-top:0">
-    <div class="card">
-      <div class="card-head"><div><div class="card-title">Efectivo en caja</div>
-        <div class="card-sub">Lo que debe haber contra lo que hay.</div></div>
-        ${icon('cash', 20, 'muted')}</div>
-      <div class="field-grid two">
-        <div class="field"><label>Fondo inicial de hoy</label>
-          <input id="initialFund" type="number" inputmode="numeric" value="${c.fund}" onchange="updateDayFund(this.value)"></div>
-        <div class="field"><label>Efectivo contado en caja</label>
-          <input id="countedCash" type="number" inputmode="numeric" placeholder="0" class="big-amount" oninput="previewDifference(${c.expected})"></div>
-      </div>
-
-      <div class="divider"></div>
-      <div class="kv"><span>Fondo inicial</span><b>${money(c.fund)}</b></div>
-      <div class="kv"><span>+ Ventas en efectivo</span><b class="text-green">${money(c.cashSales)}</b></div>
-      ${c.tipsCash ? `<div class="kv"><span>+ Propinas en efectivo</span><b class="text-green">${money(c.tipsCash)}</b></div>` : ''}
-      <div class="kv"><span>− Gastos pagados</span><b class="text-red">${money(c.spent)}</b></div>
-      <div class="total-line"><span>Efectivo que debe haber</span><b>${money(c.expected)}</b></div>
-      <div class="kv" style="margin-top:8px"><span>Diferencia contra lo contado</span><b id="diffPreview">${money(0)}</b></div>
-
-      <button class="btn btn-primary btn-lg full" style="margin-top:16px" onclick="saveCut()">
-        ${icon('check', 17)} Guardar corte del día</button>
-    </div>
-
+    <div class="grid grid-2" style="margin-top:0">
     <div class="card">
       <div class="card-head"><div><div class="card-title">Cómo se cobró</div>
         <div class="card-sub">Cada forma de pago se cuadra por su lado.</div></div>
@@ -2299,6 +2276,29 @@ function renderCut() {
 
       ${c.pending ? `<div class="divider"></div>
         <div class="kv"><span>Todavía sin cobrar</span><b class="text-red">${money(c.pending)}</b></div>` : ''}
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div><div class="card-title">Efectivo en caja</div>
+        <div class="card-sub">Lo que debe haber contra lo que hay.</div></div>
+        ${icon('cash', 20, 'muted')}</div>
+      <div class="field-grid two">
+        <div class="field"><label>Fondo inicial de hoy</label>
+          <input id="initialFund" type="number" inputmode="numeric" value="${c.fund}" onchange="updateDayFund(this.value)"></div>
+        <div class="field"><label>Efectivo contado en caja</label>
+          <input id="countedCash" type="number" inputmode="numeric" placeholder="0" class="big-amount" oninput="previewDifference(${c.expected})"></div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="kv"><span>Fondo inicial</span><b>${money(c.fund)}</b></div>
+      <div class="kv"><span>+ Ventas en efectivo</span><b class="text-green">${money(c.cashSales)}</b></div>
+      ${c.tipsCash ? `<div class="kv"><span>+ Propinas en efectivo</span><b class="text-green">${money(c.tipsCash)}</b></div>` : ''}
+      <div class="kv"><span>− Gastos pagados</span><b class="text-red">${money(c.spent)}</b></div>
+      <div class="total-line"><span>Efectivo que debe haber</span><b>${money(c.expected)}</b></div>
+      <div class="kv" style="margin-top:8px"><span>Diferencia contra lo contado</span><b id="diffPreview">${money(0)}</b></div>
+
+      <button class="btn btn-primary btn-lg full" style="margin-top:16px" onclick="saveCut()">
+        ${icon('check', 17)} Guardar corte del día</button>
     </div>
     </div>
 
