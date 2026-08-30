@@ -54,10 +54,22 @@ se guardan en el `localStorage` del navegador.
   o cuando se cobra la cuenta.
 - Cronómetro por comanda que cambia de color a los 10 y 20 minutos.
 
+### Empaque
+Pantalla para quien prepara los pedidos para llevar. **La ven todos los perfiles.**
+
+- **Por empacar**: los pedidos para llevar en cuanto cocina los marca listos. Cada tarjeta trae
+  el cliente, la dirección, el teléfono y la hora acordada, más la lista de productos con
+  palomita para ir verificando lo que ya se metió a la bolsa.
+- **Listos para salir**: los ya empacados, con quién y a qué hora los empacó. Desde ahí se
+  manda el pedido por WhatsApp a quien reparte, se cobra si falta, o se marca **Entregado**.
+- Las comandas de mesa no aparecen: esta pantalla es solo de pedidos para llevar.
+
 ### Flujo de una comanda
 1. Se levanta la comanda → entra **al mismo tiempo** a Cocina y a Caja.
 2. Cocina la marca lista → sale de Cocina y se queda esperando en Caja.
-3. Se cobra → sale de Caja y pasa al historial del día.
+   Si es **para llevar**, además aparece en **Empaque**.
+3. Se empaca → pasa a *Listos para salir*, con el aviso de la barra al día.
+4. Se cobra y se marca entregado → sale de todas las pantallas y queda en el historial.
 
 Si se cobra antes de que cocina la marque, también sale de Cocina: solo hay dos
 estados, *en cocina* y *lista para cobrar*.

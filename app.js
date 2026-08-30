@@ -161,6 +161,7 @@ const ALL_PAGES = [
   ['home',     'home',    'Inicio'],
   ['orders',   'receipt', 'Comandas'],
   ['kitchen',  'fire',    'Cocina'],
+  ['empaque',  'bag',     'Empaque'],
   ['cashier',  'cash',    'Caja'],
   ['expenses', 'minus',   'Gastos'],
   ['cut',      'chart',   'Corte'],
@@ -169,10 +170,10 @@ const ALL_PAGES = [
 ];
 /** Reparto de fábrica; se puede cambiar perfil por perfil desde Ajustes. */
 const DEFAULT_NAV = {
-  admin:  ['home', 'orders', 'kitchen', 'cashier', 'expenses', 'cut', 'products', 'admin'],
-  mesera: ['orders', 'kitchen'],
-  cocina: ['kitchen', 'orders'],
-  caja:   ['orders', 'cashier', 'expenses', 'cut'],
+  admin:  ['home', 'orders', 'kitchen', 'empaque', 'cashier', 'expenses', 'cut', 'products', 'admin'],
+  mesera: ['orders', 'kitchen', 'empaque'],
+  cocina: ['kitchen', 'empaque', 'orders'],
+  caja:   ['orders', 'empaque', 'cashier', 'expenses', 'cut'],
 };
 
 /** Ids de las pestañas de un perfil (las guardadas o las de fábrica). */
@@ -193,6 +194,7 @@ const TITLES = {
   home:     ['Panel',      'Inicio'],
   orders:   ['Ventas',     'Comandas'],
   kitchen:  ['Producción', 'Cocina'],
+  empaque:  ['Salida',     'Empaque'],
   cashier:  ['Cobro',      'Caja'],
   expenses: ['Control',    'Gastos'],
   cut:      ['Cierre',     'Corte diario'],
@@ -209,6 +211,17 @@ const dayExpenses = (k = todayKey()) => DB.get('expenses', []).filter((e) => e.d
 const envioDe     = (o) => Number((o && o.delivery && o.delivery.fee) || 0);
 /** Propina: lo que se recibió de más. No es venta del negocio, va aparte. */
 const propinaDe   = (o) => Number((o && o.payment && o.payment.tip) || 0);
+
+/* ---------- Pedidos para llevar: preparado, empacado, entregado ---------- */
+const esLlevar    = (o) => !!(o && o.delivery);
+/** Cocina terminó todo, sin importar si ya se cobró. */
+const cocinaLista = (o) => !!(o && o.items.length && o.items.every(itemReady));
+const empacado    = (o) => !!(o && o.delivery && o.delivery.packed);
+const entregado   = (o) => !!(o && o.delivery && o.delivery.delivered);
+/** Ya salió de cocina y espera a que lo empaquen. */
+const porEmpacar  = (o) => esLlevar(o) && cocinaLista(o) && !empacado(o);
+/** Empacado y todavía en el mostrador. */
+const porSalir    = (o) => esLlevar(o) && empacado(o) && !entregado(o);
 const orderItems$ = (o) => o.items.reduce((s, i) => s + i.price * i.qty, 0);
 /** Lo que se cobra: los productos más el envío, si es a domicilio. */
 const orderTotal  = (o) => orderItems$(o) + envioDe(o);
@@ -536,9 +549,11 @@ async function guardarCloudConfig() {
 function navBadges() {
   const st = dayStats();
   const open = st.open;
+  const delDia = dayOrders();
   return {
     orders:  open.length,
     kitchen: open.filter((o) => orderStatus(o) !== 'ready').length,
+    empaque: delDia.filter(porEmpacar).length,
     cashier: open.filter((o) => orderStatus(o) === 'ready').length,
   };
 }
@@ -578,8 +593,8 @@ function go(page) {
 }
 function renderPage() {
   ({ home:renderHome, orders:renderOrders, kitchen:renderKitchen, cashier:renderCashier,
-     expenses:renderExpenses, cut:renderCut, products:renderProducts,
-     admin:renderAdmin }[currentPage])?.();
+     empaque:renderEmpaque, expenses:renderExpenses, cut:renderCut,
+     products:renderProducts, admin:renderAdmin }[currentPage])?.();
 }
 function refresh() { renderNav(); renderPage(); actualizarEstadoNube(); }
 
@@ -1754,7 +1769,9 @@ function toggleItemReady(oid, iid) {
   if (!i) return;
   i.status = itemReady(i) ? 'pending' : 'ready';
   DB.set('orders', os);
-  if (o.items.every(itemReady)) toast('Comanda lista · pasa a caja', 'ok');
+  if (o.items.every(itemReady)) {
+    toast(esLlevar(o) ? 'Pedido listo · pasa a Empaque' : 'Comanda lista · pasa a caja', 'ok');
+  }
   refresh();
 }
 
@@ -1764,12 +1781,164 @@ function markOrderReady(oid) {
   if (!o) return;
   o.items.forEach((i) => (i.status = 'ready'));
   DB.set('orders', os);
-  toast(`${o.table} lista · pasa a caja`, 'ok');
+  toast(esLlevar(o) ? `${o.table} lista · pasa a Empaque` : `${o.table} lista · pasa a caja`, 'ok');
   refresh();
 }
 
 /* =========================================================================
-   4 · CAJA
+   4 · EMPAQUE — pedidos para llevar que ya salieron de cocina
+   ========================================================================= */
+
+/** Marcas de verificación mientras se empaca. Se quedan en este equipo. */
+let revisados = new Set();
+
+function renderEmpaque() {
+  const delDia = dayOrders();
+  const pendientes = delDia.filter(porEmpacar)
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  const listos = delDia.filter(porSalir)
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  const enCocina = delDia.filter((o) => esLlevar(o) && !cocinaLista(o)).length;
+
+  $('#pageContent').innerHTML = `
+    <div class="section-head" style="margin-top:0">
+      <div><h3>Pedidos para llevar</h3>
+        <p>${pendientes.length ? `${pendientes.length} por empacar` : 'Nada por empacar'}${enCocina ? ` · ${enCocina} todavía en cocina` : ''}</p></div>
+      <button class="btn btn-line btn-sm" onclick="refresh()">${icon('clock', 15)} Actualizar</button>
+    </div>
+
+    ${pendientes.length
+      ? `<div class="empaque-grid">${pendientes.map(tarjetaEmpaque).join('')}</div>`
+      : `<div class="empty"><div class="em-ic">${icon('bag', 22)}</div>
+          <strong>Nada por empacar</strong>${enCocina ? 'Hay pedidos todavía en cocina; aparecen aquí en cuanto los marquen listos.'
+                                                     : 'Los pedidos para llevar llegan aquí cuando cocina los marca listos.'}</div>`}
+
+    ${listos.length ? `
+      <div class="section-head"><div><h3>Listos para salir</h3>
+        <p>Empacados, esperando que pasen por ellos o que salgan a domicilio.</p></div></div>
+      <div class="empaque-grid">${listos.map(tarjetaSalida).join('')}</div>` : ''}`;
+}
+
+function tarjetaEmpaque(o) {
+  const mins = minutesSince(o.createdAt);
+  const d = o.delivery || {};
+  const platos = orderPeople(o);
+  const revisadosAqui = o.items.filter((i) => revisados.has(i.id)).length;
+  const completo = revisadosAqui === o.items.length;
+
+  return `<article class="empaque-card ${completo ? 'completo' : ''}">
+    <div class="ec-head">
+      <div>
+        <h4>${esc(o.customer || 'Para llevar')}</h4>
+        <small>#${esc(o.folio)} · ${esc(o.createdTime)}</small>
+      </div>
+      <span class="timer ${mins > 20 ? 'late' : mins > 10 ? 'warn' : ''}">${mins} min</span>
+    </div>
+
+    <div class="ec-entrega ${d.mode === 'A domicilio' ? 'domicilio' : ''}">
+      ${icon(d.mode === 'A domicilio' ? 'bag' : 'user', 15)}
+      <div>
+        <b>${esc(d.mode || 'Pasan por él')}</b>
+        ${d.address ? `<span>${esc(d.address)}</span>` : ''}
+        ${d.phone ? `<span>Tel. ${esc(d.phone)}</span>` : ''}
+        ${d.eta ? `<span>Para las ${esc(d.eta)}</span>` : ''}
+      </div>
+    </div>
+
+    <div class="ec-progreso">${revisadosAqui} de ${o.items.length} revisados</div>
+    ${platos.map((plato) => {
+      const suyos = o.items.filter((i) => itemPerson(i) === plato);
+      if (!suyos.length) return '';
+      return (platos.length > 1 ? `<div class="ec-plato">${esc(plato)}</div>` : '') +
+        suyos.map((i) => `
+          <button class="ec-item ${revisados.has(i.id) ? 'ok' : ''}" onclick="revisarItem('${i.id}')">
+            <span class="ec-check">${icon('check', 14)}</span>
+            <span><b>${i.qty} × ${esc(i.name)}</b>${i.note ? `<small>${esc(i.note)}</small>` : ''}</span>
+          </button>`).join('');
+    }).join('')}
+
+    <div class="ec-pie">
+      <div>
+        <b>${money(orderTotal(o))}</b>
+        <span class="${o.paid ? 'text-green' : 'text-red'}">${o.paid ? 'Ya pagado' : 'Por cobrar'}</span>
+      </div>
+      <button class="btn btn-success" onclick="marcarEmpacado('${o.id}')">
+        ${icon('check', 17)} Empacado</button>
+    </div>
+  </article>`;
+}
+
+function tarjetaSalida(o) {
+  const d = o.delivery || {};
+  return `<article class="empaque-card salida">
+    <div class="ec-head">
+      <div>
+        <h4>${esc(o.customer || 'Para llevar')}</h4>
+        <small>#${esc(o.folio)} · empacado ${esc(d.packedAt || '')}${d.packedBy ? ' por ' + esc(d.packedBy) : ''}</small>
+      </div>
+      <span class="status ready">Listo</span>
+    </div>
+
+    <div class="ec-entrega ${d.mode === 'A domicilio' ? 'domicilio' : ''}">
+      ${icon(d.mode === 'A domicilio' ? 'bag' : 'user', 15)}
+      <div>
+        <b>${esc(d.mode || 'Pasan por él')}</b>
+        ${d.address ? `<span>${esc(d.address)}</span>` : ''}
+        ${d.phone ? `<span>Tel. ${esc(d.phone)}</span>` : ''}
+      </div>
+    </div>
+
+    <div class="ec-pie">
+      <div>
+        <b>${money(orderTotal(o))}</b>
+        <span class="${o.paid ? 'text-green' : 'text-red'}">${o.paid ? 'Ya pagado' : 'Por cobrar'}</span>
+      </div>
+      <div class="actions">
+        <button class="btn btn-line btn-sm" onclick="marcarEmpacado('${o.id}', true)">${icon('back', 15)}</button>
+        <button class="btn btn-wa btn-sm" onclick="enviarWhatsApp('${o.id}')">${icon('users', 15)}</button>
+        ${!o.paid && roleAllowed('cashier')
+          ? `<button class="btn btn-primary btn-sm" onclick="openPayment('${o.id}')">${icon('cash', 15)} Cobrar</button>`
+          : ''}
+        <button class="btn btn-success btn-sm" onclick="marcarEntregado('${o.id}')">${icon('check', 15)} Entregado</button>
+      </div>
+    </div>
+  </article>`;
+}
+
+/** Palomea un producto mientras se empaca. Es solo una ayuda visual. */
+function revisarItem(id) {
+  if (revisados.has(id)) revisados.delete(id); else revisados.add(id);
+  renderEmpaque();
+}
+
+function marcarEmpacado(oid, deshacer) {
+  const os = allOrders(), o = os.find((x) => x.id === oid);
+  if (!o || !o.delivery) return;
+  o.delivery = {
+    ...o.delivery,
+    packed: !deshacer,
+    packedAt: deshacer ? '' : hourMin(),
+    packedBy: deshacer ? '' : session.label,
+  };
+  if (deshacer) o.delivery.delivered = false;
+  DB.set('orders', os);
+  o.items.forEach((i) => revisados.delete(i.id));
+  toast(deshacer ? 'Regresó a empaque' : `${o.customer || 'Pedido'} empacado`, 'ok');
+  refresh();
+}
+
+function marcarEntregado(oid) {
+  const os = allOrders(), o = os.find((x) => x.id === oid);
+  if (!o || !o.delivery) return;
+  if (!o.paid && !confirm(`Este pedido todavía no se cobra (${money(orderTotal(o))}). ¿Marcarlo como entregado de todos modos?`)) return;
+  o.delivery = { ...o.delivery, delivered: true, deliveredAt: hourMin() };
+  DB.set('orders', os);
+  toast('Pedido entregado', 'ok');
+  refresh();
+}
+
+/* =========================================================================
+   5 · CAJA
    ========================================================================= */
 function renderCashier() {
   const st = dayStats();
@@ -1994,7 +2163,7 @@ function completePayment() {
 }
 
 /* =========================================================================
-   5 · GASTOS
+   6 · GASTOS
    ========================================================================= */
 let expenseCat = 'Insumos';
 
@@ -2106,7 +2275,7 @@ function deleteExpense(id) {
 }
 
 /* =========================================================================
-   6 · CORTE DIARIO
+   7 · CORTE DIARIO
    ========================================================================= */
 /** Números de un día, listos para el corte. */
 function cutNumbers(k = todayKey()) {
@@ -2283,7 +2452,7 @@ function viewCut(id) {
 }
 
 /* =========================================================================
-   7 · MENÚ Y PRECIOS
+   8 · MENÚ Y PRECIOS
    ========================================================================= */
 function renderProducts() {
   const ps = DB.get('products', []);
@@ -2367,7 +2536,7 @@ function deleteProduct(id) {
 }
 
 /* =========================================================================
-   8 · ADMINISTRACIÓN — perfiles, negocio y datos
+   9 · ADMINISTRACIÓN — perfiles, negocio y datos
    ========================================================================= */
 let adminTab = 'negocio';   // negocio | reportes
 
@@ -2895,7 +3064,7 @@ function importBackup(input) {
 }
 
 /* =========================================================================
-   9 · REPORTES — Excel y PDF
+   10 · REPORTES — Excel y PDF
    ========================================================================= */
 
 /** Genera un CSV que Excel abre con las columnas ya separadas. */
