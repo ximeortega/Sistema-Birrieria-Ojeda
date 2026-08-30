@@ -216,6 +216,11 @@ const propinaDe   = (o) => Number((o && o.payment && o.payment.tip) || 0);
 const esLlevar    = (o) => !!(o && o.delivery);
 /** Cocina terminó todo, sin importar si ya se cobró. */
 const cocinaLista = (o) => !!(o && o.items.length && o.items.every(itemReady));
+/**
+ * Falta prepararlo. El cobro no entra aquí: si pagan por adelantado el pedido
+ * igual hay que hacerlo, y antes desaparecía de cocina sin que nadie lo tocara.
+ */
+const porPreparar = (o) => !!(o && o.items.length) && !cocinaLista(o);
 const empacado    = (o) => !!(o && o.delivery && o.delivery.packed);
 /* La pantalla de empaque solo muestra lo que falta por empacar. Al marcarlo,
    el pedido sale de ahí; el cobro es cosa de caja y no interviene. */
@@ -550,7 +555,7 @@ function navBadges() {
   const delDia = dayOrders();
   return {
     orders:  open.length,
-    kitchen: open.filter((o) => orderStatus(o) !== 'ready').length,
+    kitchen: delDia.filter(porPreparar).length,
     empaque: delDia.filter(porEmpacar).length,
     cashier: open.filter((o) => orderStatus(o) === 'ready').length,
   };
@@ -661,7 +666,7 @@ function renderHome() {
   const week = st7.reduce((s, d) => s + d.sales, 0);
   const isBoss = session.role === 'admin' || session.role === 'caja';
 
-  const pend  = st.open.filter((o) => orderStatus(o) === 'pending').length;
+  const pend  = st.orders.filter(porPreparar).length;
   const ready = st.open.filter((o) => orderStatus(o) === 'ready').length;
   const busyTables = new Set(st.open.filter((o) => o.table !== 'Para llevar').map((o) => o.table)).size;
 
@@ -1700,7 +1705,7 @@ function imprimirTicket(oid) {
  */
 function renderKitchen() {
   const enCocina = dayOrders()
-    .filter((o) => !o.paid && orderStatus(o) !== 'ready')
+    .filter(porPreparar)
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
   const piezas = enCocina.reduce((t, o) => t + o.items.filter((i) => !itemReady(i)).reduce((x, i) => x + i.qty, 0), 0);

@@ -50,8 +50,8 @@ se guardan en el `localStorage` del navegador.
   (*2/3*); el encabezado se pone verde cuando ese plato queda completo.
 - Un toque en el producto lo marca listo (otro toque lo regresa). El botón
   **“Comanda lista”** marca todo de golpe.
-- La comanda **desaparece de cocina** cuando se marcan todos sus productos
-  o cuando se cobra la cuenta.
+- La comanda **desaparece de cocina** cuando se marcan todos sus productos. Cobrarla no la
+  saca: si pagan por adelantado, el pedido igual hay que prepararlo.
 - Cronómetro por comanda que cambia de color a los 10 y 20 minutos.
 
 ### Empaque
@@ -75,8 +75,8 @@ desaparece de la pantalla.
 3. Se empaca → sale de Empaque.
 4. Se cobra → sale de Caja y queda en el historial.
 
-Si se cobra antes de que cocina la marque, también sale de Cocina: solo hay dos
-estados, *en cocina* y *lista para cobrar*.
+Cobrar y preparar son cosas distintas: una comanda pagada por adelantado sigue en Cocina
+hasta que la marquen lista, y una comanda lista espera en Caja hasta que se cobre.
 
 ### Caja
 - Pedidos ordenados poniendo primero los que ya salieron de cocina.
