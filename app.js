@@ -57,6 +57,9 @@ const ICONS = {
   download: '<path d="M12 3.6v11"/><path d="m7.8 10.4 4.2 4.2 4.2-4.2"/><path d="M4.4 16.6v2a2.4 2.4 0 0 0 2.4 2.4h10.4a2.4 2.4 0 0 0 2.4-2.4v-2"/>',
   upload:   '<path d="M12 15V3.8"/><path d="m7.8 8 4.2-4.2L16.2 8"/><path d="M4.4 16.6v2a2.4 2.4 0 0 0 2.4 2.4h10.4a2.4 2.4 0 0 0 2.4-2.4v-2"/>',
   shield:   '<path d="M12 3.2 4.8 6v6c0 4.3 3 7.6 7.2 8.8 4.2-1.2 7.2-4.5 7.2-8.8V6Z"/><path d="m9.2 12.2 2 2 3.6-3.8"/>',
+  phone:    '<rect x="6.6" y="2.4" width="10.8" height="19.2" rx="2.6"/><path d="M10.4 18.6h3.2"/>',
+  tablet:   '<rect x="4.6" y="2.4" width="14.8" height="19.2" rx="2.4"/><path d="M10.6 18.8h2.8"/>',
+  laptop:   '<rect x="3.4" y="4.8" width="17.2" height="11" rx="2"/><path d="M1.8 19.4h20.4"/>',
 };
 const icon = (name, size = 20, cls = '') =>
   `<svg class="ic ${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ''}</svg>`;
@@ -2604,6 +2607,34 @@ function renderAdminEquipos() {
   cargarEquipos();
 }
 
+/** Qué dibujo le toca a cada aparato. */
+function iconoAparato(plataforma) {
+  if (plataforma === 'iPhone' || plataforma === 'Android') return 'phone';
+  if (plataforma === 'iPad' || plataforma === 'Tablet Android') return 'tablet';
+  return 'laptop';
+}
+
+/** "hoy 8:00 a.m.", "ayer 8:00 a.m." o "25 ago 8:00 a.m." */
+function fechaHora(iso) {
+  const d = new Date(iso);
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const suDia = new Date(d); suDia.setHours(0, 0, 0, 0);
+  const dias = Math.round((hoy - suDia) / 86400000);
+  const hora = hourMin(d);
+  if (dias <= 0) return `hoy ${hora}`;
+  if (dias === 1) return `ayer ${hora}`;
+  return `${diaCorto(iso)} ${hora}`;
+}
+
+/** "3 h 30 min" — lo que duró un rato conectado. */
+function duracion(ms) {
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return 'un momento';
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60), resto = min % 60;
+  return resto ? `${h} h ${resto} min` : `${h} h`;
+}
+
 /** "30 ago" — para decir desde cuándo un equipo abre el sistema. */
 const diaCorto = (iso) => new Date(iso).toLocaleDateString('es-MX', { day:'numeric', month:'short' });
 
@@ -2628,6 +2659,8 @@ function haceCuanto(iso) {
   if (dias < 7)   return { texto:`hace ${dias} días`,  clase:'viejo',    grupo:'antes' };
   return { texto:`el ${diaCorto(iso)}`,                clase:'viejo',    grupo:'antes' };
 }
+
+let equiposVistos = [];   // la última lista que bajó, para abrir el detalle
 
 /** Pinta la lista de equipos; se consulta aparte porque viene de la nube. */
 async function cargarEquipos() {
@@ -2655,19 +2688,21 @@ async function cargarEquipos() {
 
   resumirEquipos(r.lista);
 
+  equiposVistos = r.lista;
+
   const yo = idDispositivo();
   const pintar = (d) => {
     const cuando = haceCuanto(d.last_seen);
     const esteEquipo = d.id === yo;
-    const movil = ['iPhone', 'Android'].includes(d.plataforma);
     const detalle = [
-      d.plataforma,
+      [d.plataforma, d.navegador].filter(Boolean).join(' · '),
       d.perfil ? 'entra como ' + d.perfil : null,
       d.created_at ? 'desde el ' + diaCorto(d.created_at) : null,
     ].filter(Boolean).join(' · ');
 
-    return `<div class="equipo ${cuando.clase} ${esteEquipo ? 'yo' : ''} ${d.nombre ? '' : 'sinnombre'}">
-      <span class="eq-ic">${icon(movil ? 'user' : 'table', 18)}</span>
+    return `<div class="equipo ${cuando.clase} ${esteEquipo ? 'yo' : ''} ${d.nombre ? '' : 'sinnombre'}"
+                 onclick="verEquipo('${esc(d.id)}')" title="Ver cuándo ha estado conectado">
+      <span class="eq-ic">${icon(iconoAparato(d.plataforma), 18)}</span>
       <div class="eq-datos">
         <b>${d.nombre ? esc(d.nombre) : 'Sin identificar'}${esteEquipo ? ' <i class="eq-yo">este</i>' : ''}</b>
         <span>${esc(detalle)}</span>
@@ -2676,9 +2711,9 @@ async function cargarEquipos() {
       <div class="actions">
         <button class="btn ${d.nombre ? 'btn-line' : 'btn-primary'} btn-sm"
                 title="${d.nombre ? 'Cambiar el nombre' : 'Decir quién lo usa'}"
-                onclick="pedirNombreEquipo('${esc(d.id)}','${esc(d.nombre || '')}')">${icon('edit', 14)}</button>
+                onclick="event.stopPropagation(); pedirNombreEquipo('${esc(d.id)}','${esc(d.nombre || '')}')">${icon('edit', 14)}</button>
         ${esteEquipo ? '' : `<button class="btn btn-line btn-sm" title="Quitar de la lista"
-                onclick="quitarEquipo('${esc(d.id)}')">${icon('trash', 14)}</button>`}
+                onclick="event.stopPropagation(); quitarEquipo('${esc(d.id)}')">${icon('trash', 14)}</button>`}
       </div>
     </div>`;
   };
@@ -2702,6 +2737,49 @@ function resumirEquipos(lista) {
   caja.textContent = !total ? 'Todavía nadie ha abierto el link.'
     : `${total} ${total === 1 ? 'equipo' : 'equipos'} · ${activos} ${activos === 1 ? 'abierto ahora' : 'abiertos ahora'}`
       + (sinNombre ? ` · ${sinNombre} sin identificar` : '');
+}
+
+/** Todo lo que se sabe de un equipo: quién lo usa y a qué horas ha estado dentro. */
+function verEquipo(id) {
+  const d = equiposVistos.find((x) => x.id === id);
+  if (!d) return;
+
+  const cuando = haceCuanto(d.last_seen);
+  const ratos = Array.isArray(d.historial) ? d.historial.slice().reverse() : [];
+  const total = ratos.reduce((sum, r) => sum + Math.max(0, new Date(r.h) - new Date(r.d)), 0);
+
+  openModal(`${modalHead(d.nombre || 'Sin identificar',
+      [d.plataforma, d.navegador].filter(Boolean).join(' · ') || 'Equipo')}
+    <div class="modal-body">
+      <div class="kv"><span>Quién lo usa</span><b>${d.nombre ? esc(d.nombre) : 'sin nombre todavía'}</b></div>
+      <div class="kv"><span>Aparato</span><b>${esc(d.plataforma || 'No se sabe')}</b></div>
+      ${d.navegador ? `<div class="kv"><span>Navegador</span><b>${esc(d.navegador)}</b></div>` : ''}
+      <div class="kv"><span>Entra como</span><b>${esc(d.perfil || 'no ha puesto PIN')}</b></div>
+      ${d.created_at ? `<div class="kv"><span>Abrió el link por primera vez</span><b>${esc(fechaHora(d.created_at))}</b></div>` : ''}
+      <div class="kv"><span>Última señal</span><b class="${cuando.clase === 'ahora' ? 'text-green' : ''}">${esc(cuando.texto)}</b></div>
+
+      <div class="sub-titulo">${icon('clock', 15)} Ratos que ha estado conectado</div>
+      ${ratos.length ? `
+        <div class="ratos">
+          ${ratos.slice(0, 20).map((r) => `<div class="rato">
+            <span>${esc(fechaHora(r.d))} → ${esc(hourMin(new Date(r.h)))}</span>
+            <b>${esc(duracion(new Date(r.h) - new Date(r.d)))}</b>
+          </div>`).join('')}
+        </div>
+        ${ratos.length > 20 ? `<p class="muted" style="font-size:12px;margin-top:8px">
+          Se guardan los últimos 40 ratos; aquí salen los 20 más recientes.</p>` : ''}
+        <div class="total-line"><span>Tiempo dentro</span><b>${esc(duracion(total))}</b></div>`
+      : `<p class="muted" style="font-size:12.5px">
+          Todavía no hay ratos registrados de este equipo. Se van anotando solos
+          conforme lo usen.</p>`}
+    </div>
+    <div class="modal-foot">
+      ${d.id === idDispositivo() ? '' : `<button class="btn btn-borrar" onclick="closeModal(); quitarEquipo('${esc(d.id)}')">
+        ${icon('trash', 15)} Quitar</button>`}
+      <button class="btn btn-line" onclick="closeModal(); pedirNombreEquipo('${esc(d.id)}','${esc(d.nombre || '')}')">
+        ${icon('edit', 15)} ${d.nombre ? 'Cambiar nombre' : 'Ponerle nombre'}</button>
+      <button class="btn btn-primary" onclick="closeModal()">Cerrar</button>
+    </div>`);
 }
 
 function pedirNombreEquipo(id, actual) {

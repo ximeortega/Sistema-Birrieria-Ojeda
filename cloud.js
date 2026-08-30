@@ -571,16 +571,55 @@ function idDispositivo() {
 
 /** Nombre corto del aparato, para reconocerlo en la lista. */
 function plataformaDispositivo() {
-  const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+  const nav = (typeof navigator !== 'undefined' && navigator) || {};
+  const ua = nav.userAgent || '';
+  const tactil = Number(nav.maxTouchPoints || 0) > 1;
   if (/iPhone/i.test(ua)) return 'iPhone';
   if (/iPad/i.test(ua)) return 'iPad';
+  // Los iPad nuevos se hacen pasar por Mac: se les nota por la pantalla táctil.
+  if (/Macintosh|Mac OS X/i.test(ua)) return tactil ? 'iPad' : 'Mac';
   if (/Android/i.test(ua)) return /Mobile/i.test(ua) ? 'Android' : 'Tablet Android';
   if (/Windows/i.test(ua)) return 'Windows';
-  if (/Macintosh/i.test(ua)) return 'Mac';
+  if (/Linux|X11/i.test(ua)) return 'Linux';
   return 'Otro';
 }
 
-let avisoDevices = false;   // la tabla puede no existir todavía
+/** Con qué navegador abren el link. */
+function navegadorDispositivo() {
+  const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+  if (/Edg/i.test(ua)) return 'Edge';
+  if (/OPR|Opera/i.test(ua)) return 'Opera';
+  if (/CriOS|Chrome/i.test(ua)) return 'Chrome';
+  if (/FxiOS|Firefox/i.test(ua)) return 'Firefox';
+  if (/Safari/i.test(ua)) return 'Safari';
+  return '';
+}
+
+/**
+ * Cada equipo lleva su propia libreta de ratos conectados. Si pasaron menos
+ * de 30 minutos desde la última señal, se alarga el rato que ya estaba;
+ * si no, empieza uno nuevo. Solo se guardan los últimos 40.
+ */
+const DEVICE_LOG_KEY = 'bo_dispositivo_ratos';
+const CORTE_RATO = 30 * 60000;
+
+function apuntarRato() {
+  let ratos = [];
+  try { ratos = JSON.parse(localStorage.getItem(DEVICE_LOG_KEY) || '[]') || []; } catch { ratos = []; }
+  if (!Array.isArray(ratos)) ratos = [];
+
+  const ahora = new Date().toISOString();
+  const ultimo = ratos[ratos.length - 1];
+  if (ultimo && new Date(ahora) - new Date(ultimo.h) < CORTE_RATO) ultimo.h = ahora;
+  else ratos.push({ d: ahora, h: ahora });
+
+  if (ratos.length > 40) ratos = ratos.slice(-40);
+  try { localStorage.setItem(DEVICE_LOG_KEY, JSON.stringify(ratos)); } catch {}
+  return ratos;
+}
+
+let avisoDevices = false;      // la tabla puede no existir todavía
+let sinColumnasNuevas = false; // ni las columnas de navegador e historial
 
 async function anotarDispositivo(perfil) {
   if (!Cloud.client || !Cloud.online) return;
@@ -592,7 +631,18 @@ async function anotarDispositivo(perfil) {
     };
     // Si nadie ha puesto su PIN todavía, no se pisa el perfil anterior.
     if (perfil) fila.perfil = perfil;
-    const { error } = await Cloud.client.from('devices').upsert(fila, { onConflict: 'id' });
+    if (!sinColumnasNuevas) {
+      fila.navegador = navegadorDispositivo();
+      fila.historial = apuntarRato();
+    }
+
+    let { error } = await Cloud.client.from('devices').upsert(fila, { onConflict: 'id' });
+    // Si todavía no se corrió el SQL de las columnas nuevas, se manda sin ellas.
+    if (error && /navegador|historial|column/i.test(error.message)) {
+      sinColumnasNuevas = true;
+      delete fila.navegador; delete fila.historial;
+      ({ error } = await Cloud.client.from('devices').upsert(fila, { onConflict: 'id' }));
+    }
     if (error) throw new Error(error.message);
     avisoDevices = false;
   } catch (e) {
