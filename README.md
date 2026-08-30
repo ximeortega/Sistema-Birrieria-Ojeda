@@ -112,13 +112,14 @@ consultando con el botón *Ver* y se exportan completos.
 ### Corte
 Dos cosas nada más:
 
-- **Cómo se cobró** — cuánto entró por efectivo, tarjeta y transferencia, con cuántos tickets
-  de cada uno y las propinas separadas igual. Así cada forma de pago se cuadra por su lado:
-  el efectivo contra la caja, la tarjeta contra el estado de cuenta y la transferencia contra
-  los comprobantes.
-- **Corte del día** — ventas, gastos, utilidad y el control de efectivo
-  (fondo inicial + ventas en efectivo − gastos = lo que debe haber, contra lo contado),
-  y el botón para guardarlo.
+- **Corte del día** — todo el dinero de la jornada en un solo panel, separado en tres partes:
+  1. **Efectivo, lo que pasa por la caja**: fondo inicial + ventas en efectivo + propinas en
+     efectivo − gastos = lo que debe haber, contra lo contado.
+  2. **Tarjeta y transferencia, que no pasan por la caja**: cuánto entró por cada una, cuántos
+     tickets fueron y su propina por separado. Se cuadran distinto —la tarjeta contra el estado
+     de cuenta y la transferencia contra los comprobantes— por eso van aparte.
+  3. **Total del día**: la venta cobrada, las propinas y lo que quedó sin cobrar.
+- Al lado, el **resumen del día**: comandas, tickets, piezas, ticket promedio y utilidad.
   El **fondo inicial es de cada día**: se captura aquí y no modifica los días anteriores.
   En Ajustes se define con cuánto sueles abrir caja, y ese valor se usa en los días nuevos.
 - **Historial de cortes** — todos los días que lleves guardados. Al tocar un renglón se abre

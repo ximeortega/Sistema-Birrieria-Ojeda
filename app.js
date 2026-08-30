@@ -2261,36 +2261,12 @@ function renderCut() {
 
   $('#pageContent').innerHTML = `
     <div class="grid grid-2" style="margin-top:0">
+
     <div class="card">
-      <div class="card-head"><div><div class="card-title">Cómo se cobró</div>
-        <div class="card-sub">Cada forma de pago se cuadra por su lado.</div></div>
+      <div class="card-head"><div><div class="card-title">Corte del día</div>
+        <div class="card-sub">Todo el dinero de hoy, entre por donde entre.</div></div>
         ${icon('wallet', 20, 'muted')}</div>
 
-      ${PAY_METHODS.map((m) => {
-        const monto = c.porMetodo[m.id] || 0;
-        const n = c.cuantas[m.id] || 0;
-        return `<div class="kv metodo ${monto ? '' : 'vacio'}">
-          <span>${icon(m.icon, 16)} ${m.id}${n ? ` <i class="metodo-n">${n}</i>` : ''}</span>
-          <b>${money(monto)}</b>
-        </div>`;
-      }).join('')}
-      <div class="total-line"><span>Total cobrado</span><b>${money(c.sales)}</b></div>
-
-      ${c.tips ? `
-        <div class="divider"></div>
-        <div class="card-title" style="font-size:14px;margin-bottom:8px">Propinas</div>
-        ${PAY_METHODS.filter((m) => c.propinaMetodo[m.id]).map((m) =>
-          `<div class="kv"><span>${esc(m.id)}</span><b>${money(c.propinaMetodo[m.id])}</b></div>`).join('')}
-        <div class="total-line"><span>Total en propinas</span><b>${money(c.tips)}</b></div>` : ''}
-
-      ${c.pending ? `<div class="divider"></div>
-        <div class="kv"><span>Todavía sin cobrar</span><b class="text-red">${money(c.pending)}</b></div>` : ''}
-    </div>
-
-    <div class="card">
-      <div class="card-head"><div><div class="card-title">Efectivo en caja</div>
-        <div class="card-sub">Lo que debe haber contra lo que hay.</div></div>
-        ${icon('cash', 20, 'muted')}</div>
       <div class="field-grid two">
         <div class="field"><label>Fondo inicial de hoy</label>
           <input id="initialFund" type="number" inputmode="numeric" value="${c.fund}" onchange="updateDayFund(this.value)"></div>
@@ -2298,16 +2274,51 @@ function renderCut() {
           <input id="countedCash" type="number" inputmode="numeric" placeholder="0" class="big-amount" oninput="previewDifference(${c.expected})"></div>
       </div>
 
-      <div class="divider"></div>
+      <div class="sub-titulo">${icon('cash', 15)} Efectivo · lo que pasa por la caja</div>
       <div class="kv"><span>Fondo inicial</span><b>${money(c.fund)}</b></div>
-      <div class="kv"><span>+ Ventas en efectivo</span><b class="text-green">${money(c.cashSales)}</b></div>
+      <div class="kv"><span>+ Ventas en efectivo${c.cuantas.Efectivo ? ` <i class="metodo-n">${c.cuantas.Efectivo}</i>` : ''}</span>
+        <b class="text-green">${money(c.cashSales)}</b></div>
       ${c.tipsCash ? `<div class="kv"><span>+ Propinas en efectivo</span><b class="text-green">${money(c.tipsCash)}</b></div>` : ''}
       <div class="kv"><span>− Gastos pagados</span><b class="text-red">${money(c.spent)}</b></div>
       <div class="total-line"><span>Efectivo que debe haber</span><b>${money(c.expected)}</b></div>
-      <div class="kv" style="margin-top:8px"><span>Diferencia contra lo contado</span><b id="diffPreview">${money(0)}</b></div>
+      <div class="kv"><span>Diferencia contra lo contado</span><b id="diffPreview">${money(0)}</b></div>
+
+      <div class="sub-titulo">${icon('trend', 15)} Tarjeta y transferencia · no pasan por la caja</div>
+      ${PAY_METHODS.filter((m) => m.id !== 'Efectivo').map((m) => {
+        const monto = c.porMetodo[m.id] || 0;
+        const prop = c.propinaMetodo[m.id] || 0;
+        const n = c.cuantas[m.id] || 0;
+        return `<div class="kv metodo ${monto || prop ? '' : 'vacio'}">
+            <span>${icon(m.icon, 16)} ${m.id}${n ? ` <i class="metodo-n">${n}</i>` : ''}</span>
+            <b>${money(monto)}</b>
+          </div>
+          ${prop ? `<div class="kv sangria"><span>propina en ${esc(m.id.toLowerCase())}</span><b>${money(prop)}</b></div>` : ''}`;
+      }).join('')}
+      <div class="total-line"><span>Total sin efectivo</span><b>${money(c.sales - c.cashSales + c.tipsCard)}</b></div>
+
+      <div class="sub-titulo">${icon('chart', 15)} Total del día</div>
+      <div class="kv"><span>Venta cobrada</span><b>${money(c.sales)}</b></div>
+      ${c.tips ? `<div class="kv"><span>Propinas (de quien atiende)</span><b>${money(c.tips)}</b></div>` : ''}
+      ${c.pending ? `<div class="kv"><span>Todavía sin cobrar</span><b class="text-red">${money(c.pending)}</b></div>` : ''}
+      <div class="total-line"><span>Entró en total</span><b>${money(c.sales + c.tips)}</b></div>
 
       <button class="btn btn-primary btn-lg full" style="margin-top:16px" onclick="saveCut()">
         ${icon('check', 17)} Guardar corte del día</button>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div><div class="card-title">Resumen del día</div>
+        <div class="card-sub" style="text-transform:capitalize">${dateText()}</div></div>
+        ${icon('receipt', 20, 'muted')}</div>
+      <div class="kv"><span>Comandas levantadas</span><b>${c.orders.length}</b></div>
+      <div class="kv"><span>Tickets cobrados</span><b>${c.paid.length}</b></div>
+      <div class="kv"><span>Comandas abiertas</span><b>${c.open.length}</b></div>
+      <div class="kv"><span>Piezas vendidas</span><b>${num(c.pieces)}</b></div>
+      <div class="kv"><span>Ticket promedio</span><b>${money(c.ticket)}</b></div>
+      <div class="divider"></div>
+      <div class="kv"><span>Venta cobrada</span><b class="text-green">${money(c.sales)}</b></div>
+      <div class="kv"><span>Gastos del día</span><b class="text-red">${money(c.spent)}</b></div>
+      <div class="total-line"><span>Utilidad</span><b class="${c.utility >= 0 ? 'text-green' : 'text-red'}">${money(c.utility)}</b></div>
     </div>
     </div>
 
