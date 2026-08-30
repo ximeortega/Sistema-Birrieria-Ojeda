@@ -12,6 +12,8 @@ const num   = (n) => new Intl.NumberFormat('es-MX').format(Number(n || 0));
 const todayKey = () => new Date().toLocaleDateString('sv-SE');
 const dayKeyOf = (d) => d.toLocaleDateString('sv-SE');
 const shiftKey = (days) => { const d = new Date(); d.setDate(d.getDate() + days); return dayKeyOf(d); };
+/** "domingo, 30 de agosto" → "Domingo, 30 de agosto" */
+const mayus1 = (t = '') => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
 const dateText = (d = new Date()) => d.toLocaleDateString('es-MX', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
 const timeText = (d = new Date()) => d.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
 const hourMin  = (d = new Date()) => d.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' });
@@ -99,10 +101,13 @@ function getTables() {
 }
 const bizName = () => DB.get('bizName', 'Birriería Ojeda');
 const EXPENSE_CATS = ['Carne','Insumos','Tortillas','Bebidas','Gas','Servicios','Nómina','Otros'];
+/**
+ * Todo se cobra en efectivo. Las comandas viejas que se cobraron con
+ * tarjeta o transferencia conservan su forma de pago, y el corte de esos
+ * días las sigue separando para que el conteo de billetes cuadre.
+ */
 const PAY_METHODS = [
-  { id:'Efectivo',      icon:'cash'   },
-  { id:'Tarjeta',       icon:'wallet' },
-  { id:'Transferencia', icon:'trend'  },
+  { id:'Efectivo', icon:'cash' },
 ];
 
 /* ---------- Persistencia ---------------------------------------------- */
@@ -744,7 +749,7 @@ function renderHome() {
     <div class="section-head" style="margin-top:0">
       <div>
         <h3>Hola, ${esc(session.label)}</h3>
-        <p style="text-transform:capitalize">${dateText()}</p>
+        <p>${esc(mayus1(dateText()))}</p>
       </div>
       <div class="actions">
         ${roleAllowed('cut') ? `<button class="btn btn-line" onclick="go('cut')">${icon('chart', 17)} Ver corte</button>` : ''}
@@ -1998,16 +2003,12 @@ function openPayment(oid) {
 
       <div class="pay-grid">
         <div>
-          <div class="pay-step"><i class="pay-step-n">1</i> ¿Cómo va a pagar?</div>
-          <div class="pay-methods col" id="payMethods">
-            ${PAY_METHODS.map((m) => `<button class="${m.id === 'Efectivo' ? 'on' : ''}" data-m="${m.id}"
-                onclick="setMethod('${m.id}')">${icon(m.icon, 19)}<span>${m.id}</span></button>`).join('')}
-          </div>
+          <div class="pay-step">Cambio a devolver</div>
           <div class="change-box" id="changeBox"><span>Cambio</span><b id="cashChange">$0</b></div>
         </div>
 
         <div id="cashBlock">
-          <div class="pay-step"><i class="pay-step-n">2</i> <span id="pasoDos">¿Con cuánto paga?</span></div>
+          <div class="pay-step"><span id="pasoDos">¿Con cuánto paga?</span></div>
           <div class="cash-quick" id="cashQuick">
             ${quickCash(total).map((v) => `<button onclick="setCash(${v})">${v === total ? 'Exacto' : money(v)}</button>`).join('')}
           </div>
@@ -2029,18 +2030,8 @@ function openPayment(oid) {
   syncPayment();
 }
 
-function setMethod(m) {
-  payDraft.method = m;
-  payDraft.raw = '';
-  payDraft.propina = false;
-  $$('#payMethods button').forEach((b) => b.classList.toggle('on', b.dataset.m === m));
-
-  const efectivo = m === 'Efectivo';
-  // Los billetes solo tienen sentido con dinero en mano.
-  $('#cashQuick').style.display = efectivo ? '' : 'none';
-  $('#pasoDos').textContent = efectivo ? '¿Con cuánto paga?' : `¿Cuánto ${m === 'Tarjeta' ? 'se cargó' : 'transfirieron'}?`;
-  syncPayment();
-}
+/** Se conserva por si alguna pantalla vieja la llama; todo es efectivo. */
+function setMethod() { payDraft.method = 'Efectivo'; payDraft.raw = ''; payDraft.propina = false; syncPayment(); }
 function payKey(d) { if (payDraft.raw.length < 6) payDraft.raw += d; syncPayment(); }
 function payBack() { payDraft.raw = payDraft.raw.slice(0, -1); syncPayment(); }
 function setCash(v) { payDraft.raw = String(v); syncPayment(); }
@@ -2179,7 +2170,7 @@ function renderExpenses() {
       </div>
     </div>
 
-    <div class="section-head"><div><h3>Movimientos de hoy</h3><p style="text-transform:capitalize">${dateText()}</p></div></div>
+    <div class="section-head"><div><h3>Movimientos de hoy</h3><p>${esc(mayus1(dateText()))}</p></div></div>
     ${ex.length ? `<div class="table-wrap"><div class="scroll"><table class="data-table">
         <thead><tr><th>Hora</th><th>Categoría</th><th>Descripción</th><th>Responsable</th><th class="r">Cantidad</th><th></th></tr></thead>
         <tbody>${[...ex].reverse().map((e) => `<tr>
@@ -2295,7 +2286,7 @@ function renderCut() {
                  value="${esc(contadoDia)}" oninput="contadoCambio(this.value, ${c.expected})"></div>
       </div>
 
-      <div class="dos-cajas">
+      <div class="${c.sinEfectivo ? 'dos-cajas' : ''}">
 
         <div class="caja-dinero efectivo">
           <div class="cd-head">${icon('cash', 15)} Efectivo <small>pasa por la caja</small></div>
@@ -2310,26 +2301,27 @@ function renderCut() {
           </div>
         </div>
 
-        <div class="caja-dinero digital">
-          <div class="cd-head">${icon('trend', 15)} Transferencia y tarjeta <small>no pasan por la caja</small></div>
-          ${PAY_METHODS.filter((m) => m.id !== 'Efectivo').map((m) => `
-            <div class="kv ${(c.porMetodo[m.id] || 0) ? '' : 'vacio'}">
-              <span>${esc(m.id)}${c.cuantas[m.id] ? ` <i class="metodo-n">${c.cuantas[m.id]}</i>` : ''}</span>
-              <b>${money(c.porMetodo[m.id] || 0)}</b>
+        ${c.sinEfectivo ? `<div class="caja-dinero digital">
+          <div class="cd-head">${icon('trend', 15)} Otras formas de pago <small>de comandas anteriores</small></div>
+          ${Object.keys(c.porMetodo).filter((m) => m !== 'Efectivo' && (c.porMetodo[m] || c.propinaMetodo[m])).map((m) => `
+            <div class="kv">
+              <span>${esc(m)}${c.cuantas[m] ? ` <i class="metodo-n">${c.cuantas[m]}</i>` : ''}</span>
+              <b>${money(c.porMetodo[m] || 0)}</b>
             </div>`).join('')}
           <div class="kv ${c.tipsCard ? '' : 'vacio'}"><span>Propinas</span><b>${money(c.tipsCard)}</b></div>
           <div class="cierre una">
             <div><span>Total recibido</span><b>${money(c.sinEfectivo)}</b></div>
           </div>
-        </div>
+        </div>` : ''}
 
       </div>
 
-      <div class="gran-total">
-        <div class="gt-parte"><span>En caja</span><b>${money(c.expected)}</b></div>
-        <i class="gt-signo">+</i>
-        <div class="gt-parte"><span>Transferencia y tarjeta</span><b>${money(c.sinEfectivo)}</b></div>
-        <i class="gt-signo">=</i>
+      <div class="gran-total ${c.sinEfectivo ? '' : 'solo'}">
+        ${c.sinEfectivo ? `
+          <div class="gt-parte"><span>En caja</span><b>${money(c.expected)}</b></div>
+          <i class="gt-signo">+</i>
+          <div class="gt-parte"><span>Otras formas de pago</span><b>${money(c.sinEfectivo)}</b></div>
+          <i class="gt-signo">=</i>` : ''}
         <div class="gt-todo"><span>Debes tener en total</span><b>${money(c.totalEsperado)}</b></div>
       </div>
 
@@ -2337,64 +2329,67 @@ function renderCut() {
         ${icon('check', 17)} Guardar corte del día</button>
     </div>
 
-    <div class="col-lado">
     <div class="card">
-      <div class="card-head"><div><div class="card-title">Resumen del día</div>
-        <div class="card-sub"><span style="text-transform:capitalize">${dateText()}</span> · al momento ${hourMin()}</div></div>
-        ${icon('receipt', 20, 'muted')}</div>
-      <div class="kv"><span>Comandas levantadas</span><b>${c.orders.length}</b></div>
-      <div class="kv"><span>Tickets cobrados</span><b>${c.paid.length}</b></div>
-      <div class="kv"><span>Comandas abiertas</span><b>${c.open.length}</b></div>
-      <div class="kv"><span>Piezas vendidas</span><b>${num(c.pieces)}</b></div>
-      <div class="kv"><span>Ticket promedio</span><b>${money(c.ticket)}</b></div>
-      <div class="divider"></div>
-      <div class="kv"><span>Venta cobrada</span><b>${money(c.sales)}</b></div>
-      <div class="kv"><span>Propinas</span><b>${money(c.tips)}</b></div>
-      <div class="kv"><span>Sin cobrar</span><b class="${c.pending ? 'text-red' : ''}">${money(c.pending)}</b></div>
-      <div class="kv"><span>Gastos del día</span><b class="${c.spent ? 'text-red' : ''}">${money(c.spent)}</b></div>
-      <div class="total-line"><span>Utilidad</span>
-        <b class="${c.utility >= 0 ? 'text-green' : 'text-red'}">${money(c.utility)}</b></div>
-    </div>
-
-    <div class="card">
-      <div class="card-head"><div><div class="card-title">Calculadora</div>
-        <div class="card-sub">Para sacar cuentas sin salirte del corte.</div></div>
-        ${icon('plus', 20, 'muted')}</div>
-
-      <div class="calc-visor">
-        <span id="calcOperacion">${esc(calcRotulo())}</span>
-        <b id="calcPantalla">${esc(calcPantalla)}</b>
+      <div class="card-head">
+        <div><div class="card-title">${ladoPanel === 'calc' ? 'Calculadora' : 'Resumen del día'}</div>
+          <div class="card-sub">${ladoPanel === 'calc'
+            ? 'Para sacar cuentas sin salirte del corte.'
+            : `${esc(mayus1(dateText()))} · al momento ${hourMin()}`}</div></div>
+        <div class="panel-toggle">
+          <button class="${ladoPanel === 'resumen' ? 'on' : ''}" title="Resumen del día"
+                  onclick="setLadoPanel('resumen')">${icon('receipt', 16)}</button>
+          <button class="${ladoPanel === 'calc' ? 'on' : ''}" title="Calculadora"
+                  onclick="setLadoPanel('calc')">${icon('plus', 16)}</button>
+        </div>
       </div>
 
-      <div class="calc-teclas">
-        <button class="ct fn" onclick="calcTecla('C')">C</button>
-        <button class="ct fn" onclick="calcTecla('⌫')">⌫</button>
-        <button class="ct fn" onclick="calcTecla('%')">%</button>
-        <button class="ct op" onclick="calcTecla('÷')">÷</button>
+      ${ladoPanel === 'calc' ? `
+        <div class="calc-visor">
+          <span id="calcOperacion">${esc(calcRotulo())}</span>
+          <b id="calcPantalla">${esc(calcPantalla)}</b>
+        </div>
 
-        <button class="ct" onclick="calcTecla('7')">7</button>
-        <button class="ct" onclick="calcTecla('8')">8</button>
-        <button class="ct" onclick="calcTecla('9')">9</button>
-        <button class="ct op" onclick="calcTecla('×')">×</button>
+        <div class="calc-teclas">
+          <button class="ct fn" onclick="calcTecla('C')">C</button>
+          <button class="ct fn" onclick="calcTecla('⌫')">⌫</button>
+          <button class="ct fn" onclick="calcTecla('%')">%</button>
+          <button class="ct op" onclick="calcTecla('÷')">÷</button>
 
-        <button class="ct" onclick="calcTecla('4')">4</button>
-        <button class="ct" onclick="calcTecla('5')">5</button>
-        <button class="ct" onclick="calcTecla('6')">6</button>
-        <button class="ct op" onclick="calcTecla('−')">−</button>
+          <button class="ct" onclick="calcTecla('7')">7</button>
+          <button class="ct" onclick="calcTecla('8')">8</button>
+          <button class="ct" onclick="calcTecla('9')">9</button>
+          <button class="ct op" onclick="calcTecla('×')">×</button>
 
-        <button class="ct" onclick="calcTecla('1')">1</button>
-        <button class="ct" onclick="calcTecla('2')">2</button>
-        <button class="ct" onclick="calcTecla('3')">3</button>
-        <button class="ct op" onclick="calcTecla('+')">+</button>
+          <button class="ct" onclick="calcTecla('4')">4</button>
+          <button class="ct" onclick="calcTecla('5')">5</button>
+          <button class="ct" onclick="calcTecla('6')">6</button>
+          <button class="ct op" onclick="calcTecla('−')">−</button>
 
-        <button class="ct ancho" onclick="calcTecla('0')">0</button>
-        <button class="ct" onclick="calcTecla('.')">.</button>
-        <button class="ct igual" onclick="calcTecla('=')">=</button>
-      </div>
+          <button class="ct" onclick="calcTecla('1')">1</button>
+          <button class="ct" onclick="calcTecla('2')">2</button>
+          <button class="ct" onclick="calcTecla('3')">3</button>
+          <button class="ct op" onclick="calcTecla('+')">+</button>
 
-      <button class="btn btn-line full" style="margin-top:10px" onclick="calcAEfectivo()">
-        ${icon('cash', 15)} Pasar a efectivo contado</button>
-    </div>
+          <button class="ct ancho" onclick="calcTecla('0')">0</button>
+          <button class="ct" onclick="calcTecla('.')">.</button>
+          <button class="ct igual" onclick="calcTecla('=')">=</button>
+        </div>
+
+        <button class="btn btn-line full" style="margin-top:10px" onclick="calcAEfectivo()">
+          ${icon('cash', 15)} Pasar a efectivo contado</button>`
+      : `
+        <div class="kv"><span>Comandas levantadas</span><b>${c.orders.length}</b></div>
+        <div class="kv"><span>Tickets cobrados</span><b>${c.paid.length}</b></div>
+        <div class="kv"><span>Comandas abiertas</span><b>${c.open.length}</b></div>
+        <div class="kv"><span>Piezas vendidas</span><b>${num(c.pieces)}</b></div>
+        <div class="kv"><span>Ticket promedio</span><b>${money(c.ticket)}</b></div>
+        <div class="divider"></div>
+        <div class="kv"><span>Venta cobrada</span><b>${money(c.sales)}</b></div>
+        <div class="kv"><span>Propinas</span><b>${money(c.tips)}</b></div>
+        <div class="kv"><span>Sin cobrar</span><b class="${c.pending ? 'text-red' : ''}">${money(c.pending)}</b></div>
+        <div class="kv"><span>Gastos del día</span><b class="${c.spent ? 'text-red' : ''}">${money(c.spent)}</b></div>
+        <div class="total-line"><span>Utilidad</span>
+          <b class="${c.utility >= 0 ? 'text-green' : 'text-red'}">${money(c.utility)}</b></div>`}
     </div>
     </div>
 
@@ -2405,7 +2400,7 @@ function renderCut() {
     ${cuts.length ? `<div class="table-wrap"><div class="scroll"><table class="data-table">
         <thead><tr><th>Día</th><th>Hora</th><th class="r">Ventas</th><th class="r">Gastos</th><th class="r">Utilidad</th><th class="r">Diferencia</th><th></th></tr></thead>
         <tbody>${cuts.map((x) => `<tr class="clickable" onclick="viewCut('${x.id}')">
-          <td><strong style="text-transform:capitalize">${esc(cutDayLabel(x))}</strong></td>
+          <td><strong>${esc(mayus1(cutDayLabel(x)))}</strong></td>
           <td class="muted">${esc(x.time)}</td>
           <td class="r money">${money(x.sales)}</td>
           <td class="r money text-red">${money(x.expenses)}</td>
@@ -2429,6 +2424,10 @@ function cutDayLabel(x) {
 
 /** Cambia el fondo del día que se está cortando, sin tocar los días anteriores. */
 function updateDayFund(v) { setFund(v); renderCut(); }
+/** Cuál de los dos paneles se está viendo al lado del corte. */
+let ladoPanel = 'resumen';   // resumen o calc
+function setLadoPanel(cual) { ladoPanel = cual; renderCut(); }
+
 /* ---------- Calculadora del corte --------------------------------------- */
 /**
  * Una calculadora sencilla al lado del corte, para no tener que buscar el
@@ -3757,9 +3756,11 @@ function filasCorteDelDia() {
   return [
     ['Concepto', 'Importe'],
     ['Ventas cobradas', c.sales],
-    ...PAY_METHODS.map((m) => ['— con ' + m.id.toLowerCase(), c.porMetodo[m.id] || 0]),
+    ...Object.keys(c.porMetodo).filter((m) => c.porMetodo[m])
+        .map((m) => ['— con ' + m.toLowerCase(), c.porMetodo[m]]),
     ['Propinas del día', c.tips],
-    ...PAY_METHODS.filter((m) => c.propinaMetodo[m.id]).map((m) => ['— propina con ' + m.id.toLowerCase(), c.propinaMetodo[m.id]]),
+    ...Object.keys(c.propinaMetodo).filter((m) => c.propinaMetodo[m])
+        .map((m) => ['— propina con ' + m.toLowerCase(), c.propinaMetodo[m]]),
     ['Sin cobrar', c.pending],
     ['Gastos del día', c.spent],
     ['Utilidad', c.utility],
@@ -3811,8 +3812,8 @@ function corteEnPDF() {
     <table>
       <tbody>
         <tr><td>Fondo inicial</td><td class="num">${money(c.fund)}</td></tr>
-        ${PAY_METHODS.map((m) =>
-          `<tr><td>+ Cobrado con ${esc(m.id.toLowerCase())}</td><td class="num">${money(c.porMetodo[m.id] || 0)}</td></tr>`).join('')}
+        ${Object.keys(c.porMetodo).filter((m) => c.porMetodo[m]).map((m) =>
+          `<tr><td>+ Cobrado con ${esc(m.toLowerCase())}</td><td class="num">${money(c.porMetodo[m])}</td></tr>`).join('')}
         ${c.tipsCash ? `<tr><td>+ Propinas en efectivo</td><td class="num">${money(c.tipsCash)}</td></tr>` : ''}
         <tr><td>− Gastos</td><td class="num">${money(c.spent)}</td></tr>
         <tr class="total"><td>Efectivo que debe haber</td><td class="num">${money(c.expected)}</td></tr>

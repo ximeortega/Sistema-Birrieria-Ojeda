@@ -697,16 +697,8 @@ small{font-size:12px}
 .change-box span{font-size:13px;color:rgba(255,255,255,.6);font-weight:650}
 .change-box b{font-size:32px;font-weight:820;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .change-box.err b{color:#ff8a95}
-.pay-methods{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.pay-methods button{
-  border:1.5px solid var(--line);border-radius:var(--r-sm);padding:12px 8px;background:var(--surface);
-  font-weight:700;font-size:13px;display:grid;gap:6px;place-items:center;transition:.14s;
-}
-.pay-methods.col{grid-template-columns:1fr;gap:7px}
-.pay-methods.col button{display:flex;align-items:center;justify-content:flex-start;gap:11px;padding:12px 14px;font-size:14px}
-.pay-grid .change-box{margin-top:12px;padding:15px 17px}
+.pay-grid .change-box{padding:16px 18px}
 .pay-grid .change-box b{font-size:29px}
-.pay-methods button.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-ink)}
 
 /* ---------- Gastos / Corte ------------------------------------------- */
 .cut-hero{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
@@ -743,8 +735,17 @@ small{font-size:12px}
 .gt-todo span{opacity:.78}
 .gt-todo b{font-size:25px;letter-spacing:-.02em}
 .gt-signo{font-style:normal;font-size:15px;font-weight:800;opacity:.45;flex:none}
+.gran-total.solo{justify-content:space-between}
+.gran-total.solo .gt-todo{margin-left:0;display:flex;align-items:baseline;justify-content:space-between;width:100%}
+.gran-total.solo .gt-todo span{font-size:13px;opacity:.72}
 
-.col-lado{display:flex;flex-direction:column;gap:16px}
+.panel-toggle{display:flex;gap:3px;padding:3px;border-radius:10px;background:var(--line-2);flex:none}
+.panel-toggle button{
+  display:grid;place-items:center;width:32px;height:28px;border:0;border-radius:8px;
+  background:transparent;color:var(--muted);cursor:pointer;transition:background .12s,color .12s;
+}
+.panel-toggle button:hover{color:var(--ink-2)}
+.panel-toggle button.on{background:var(--surface);color:var(--brand);box-shadow:var(--sh-xs)}
 
 .calc-visor{
   border-radius:var(--r);background:var(--ink);color:#fff;
