@@ -22,6 +22,13 @@
 <body>
   <div id="toast" class="toast" aria-live="polite"></div>
 
+  <!-- Se muestra mientras se traen los precios y las comandas del día -->
+  <section id="cargando" class="cargando">
+    <img class="cargando-logo" src="logo.png" alt="" data-i="0" onerror="logoFallback(this)" />
+    <div class="cargando-barra"><i></i></div>
+    <p id="cargandoTexto">Trayendo la información más reciente…</p>
+  </section>
+
   <!-- ================= LOGIN ================= -->
   <section id="loginView" class="login-view">
     <div class="login-shell">

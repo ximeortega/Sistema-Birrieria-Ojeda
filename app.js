@@ -869,7 +869,24 @@ function orderCard(o) {
 
 /* ---------- Hoja constructora de comandas ----------------------------- */
 /** Paso 1: elegir la mesa. Si ya tiene comanda abierta, se abre para seguir capturando. */
+/**
+ * Antes de levantar una comanda se vuelve a pedir el menú: es el momento en el
+ * que un precio viejo se convertiría en dinero mal cobrado. Se lanza mientras
+ * se elige la mesa, así no se espera de más.
+ */
+let refrescoMenu = null;
+function pedirMenuFresco() {
+  if (typeof Cloud === 'undefined' || !Cloud.online) return;
+  refrescoMenu = cloudPullTable('products').catch(() => {});
+}
+async function esperarMenuFresco() {
+  if (!refrescoMenu) return;
+  await Promise.race([refrescoMenu, esperar(1500)]);
+  refrescoMenu = null;
+}
+
 function newOrder() {
+  pedirMenuFresco();
   const abiertas = dayOrders().filter((o) => !o.paid);
   openModal(`${modalHead('Nueva comanda', '¿En qué mesa?')}
     <div class="modal-body">
@@ -891,9 +908,17 @@ function newOrder() {
 const esParaLlevar = (mesa) => mesa === 'Para llevar';
 
 function chooseTable(t) {
+  // Si el menú venía en camino, se espera; si no hay nada pendiente, sigue de
+  // largo para no meter una espera donde no hace falta.
+  if (refrescoMenu) { esperarMenuFresco().then(() => abrirComandaEn(t)); return; }
+  abrirComandaEn(t);
+}
+
+function abrirComandaEn(t) {
   const abierta = dayOrders().find((o) => !o.paid && o.table === t);
   closeModal();
   if (abierta && !esParaLlevar(t)) { editOrder(abierta.id); return; }
+  preciosAvisados = new Set();
   draft = { orderId:null, table:t, customer:'', items:[], people:['Plato 1'], person:'Plato 1' };
   menuFilter = { cat:'TODO', q:'' };
   // Un pedido para llevar necesita a dónde va antes de empezar a capturarlo.
@@ -999,6 +1024,12 @@ function textoEntrega(o) {
 }
 
 function editOrder(id) {
+  pedirMenuFresco();
+  if (refrescoMenu) { esperarMenuFresco().then(() => editarComanda(id)); return; }
+  editarComanda(id);
+}
+
+function editarComanda(id) {
   const o = allOrders().find((x) => x.id === id);
   if (!o) return;
   const people = orderPeople(o);
@@ -1148,6 +1179,7 @@ function applyTablePick() {
 
 function renderMenu() {
   const products = DB.get('products', []).filter((p) => p.active);
+  avisarPreciosCambiados(products);
   const cats = ['TODO', ...new Set(products.map((p) => p.category))];
   menuCats = cats;
   $('#catTabs').innerHTML = cats.map((c, i) =>
@@ -1172,6 +1204,25 @@ function renderMenu() {
         ${inBag ? `<em class="inbag">${inBag}</em>` : ''}
         <strong>${esc(p.name)}</strong><span>${money(p.price)}</span></button>`;
     }).join('')}</div>`).join('');
+}
+
+/**
+ * Si a un producto ya capturado le cambian el precio desde otro equipo, la
+ * comanda conserva el precio con el que se levantó (así funciona una cuenta),
+ * pero hay que decirlo para que nadie cobre de menos sin darse cuenta.
+ */
+let preciosAvisados = new Set();
+function avisarPreciosCambiados(products) {
+  if (!draft || !draft.items.length) return;
+  const porId = new Map(products.map((p) => [p.id, p]));
+  draft.items.forEach((i) => {
+    const actual = porId.get(i.productId);
+    if (!actual || actual.price === i.price) return;
+    const clave = i.id + ':' + actual.price;
+    if (preciosAvisados.has(clave)) return;
+    preciosAvisados.add(clave);
+    toast(`${i.name} cambió a ${money(actual.price)}; en esta comanda va a ${money(i.price)}`, 'err');
+  });
 }
 
 function renderTicket() {
@@ -3312,34 +3363,58 @@ function mostrarAccesoNegocio() {
   renderCloudLogin();
 }
 
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function ocultarCargando(mensaje) {
+  const c = $('#cargando');
+  if (!c) return;
+  c.classList.add('fuera');
+  setTimeout(() => c.remove(), 260);
+  if (mensaje) toast(mensaje, 'err');
+}
+
+/**
+ * Se abre con la información al día. Los precios se cobran de verdad, así que
+ * no se muestra nada hasta traer lo último de la nube; si tarda o no hay
+ * internet, se sigue con lo guardado pero avisando.
+ */
 async function arrancar() {
-  // Se pinta el login de una vez con lo que hay en el equipo: esperar a la nube
-  // dejaba la pantalla a medias unos segundos.
-  // Ojo: si hay nube configurada NO se siembra todavía. En un equipo nuevo, el
-  // menú de fábrica se tomaría como "capturado aquí" y acabaría mezclándose con
-  // el de la nube en vez de ceder ante él.
+  // En un equipo nuevo no se siembra todavía: el menú de fábrica se tomaría
+  // como capturado aquí y acabaría mezclándose con el de la nube.
   const conNube = typeof cloudConfig === 'function' && !!cloudConfig();
   if (!conNube) sembrarDefaults();
   migrarInicio();
   applyBranding();
 
-  // Si este equipo ya había entrado, se retoma el perfil sin volver a pedir el PIN.
-  const recordado = leerSesion();
-  if (!recordado || !abrirSesion(recordado, false)) mostrarLogin();
+  let aviso = '';
+  if (conNube) {
+    const texto = $('#cargandoTexto');
+    const lento = setTimeout(() => {
+      if (texto) texto.textContent = 'La conexión va lenta, tantito…';
+    }, 2200);
 
-  try { await cloudInit(); }
-  catch (e) { Cloud.error = e.message; }
+    // Con tope de tiempo: en plena corrida no se puede dejar a nadie esperando.
+    const listo = await Promise.race([
+      cloudInit().then(() => 'listo').catch((e) => { Cloud.error = e.message; return 'error'; }),
+      esperar(6000).then(() => 'tarde'),
+    ]);
+    clearTimeout(lento);
 
-  // Ya con la nube puede haber otro nombre, otro logo u otros perfiles.
+    if (listo !== 'listo') {
+      aviso = 'Sin conexión: se abrió con lo último guardado. Revisa los precios antes de cobrar.';
+    } else if (Cloud.error) {
+      aviso = Cloud.error;
+    }
+  }
+
   sembrarDefaults();
   migrarInicio();
   applyBranding();
   actualizarEstadoNube();
 
-  // Solo se redibuja si la nube trajo algo distinto: si no, la pantalla
-  // parpadeaba en cada recarga sin motivo.
-  if (session) { if (Cloud.trajoCambios) refresh(); }
-  else mostrarLogin();
+  const recordado = leerSesion();
+  if (!recordado || !abrirSesion(recordado, false)) mostrarLogin();
+  ocultarCargando(aviso);
 }
 
 /**

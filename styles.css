@@ -126,6 +126,29 @@ small{font-size:12px}
 .field-grid.two{grid-template-columns:repeat(2,1fr)}
 
 /* ---------- Login ---------------------------------------------------- */
+/* Pantalla de arranque, mientras se trae lo último de la nube */
+.cargando{
+  position:fixed;inset:0;z-index:900;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:18px;padding:24px;
+  background:linear-gradient(150deg,#fff6f4 0%,#ffe2dd 45%,#f6c8c3 100%);
+  transition:opacity .25s;
+}
+.cargando.fuera{opacity:0;pointer-events:none}
+.cargando-logo{width:min(140px,34vw);aspect-ratio:1;border-radius:50%;object-fit:cover;
+  filter:drop-shadow(0 10px 24px rgba(80,10,16,.28))}
+.cargando p{font-size:13px;color:var(--brand-ink);font-weight:650;text-align:center}
+.cargando-barra{
+  width:min(220px,60vw);height:4px;border-radius:99px;background:rgba(140,17,28,.16);overflow:hidden;
+}
+.cargando-barra i{
+  display:block;width:40%;height:100%;border-radius:99px;background:var(--brand);
+  animation:corre 1.1s ease-in-out infinite;
+}
+@keyframes corre{
+  0%{transform:translateX(-100%)}
+  100%{transform:translateX(320%)}
+}
+
 .login-view{
   min-height:100dvh;display:flex;align-items:center;justify-content:center;
   padding:20px;overflow-y:auto;
