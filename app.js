@@ -3987,6 +3987,28 @@ function descargarDocumento(html, nombre) {
 $('#logoutBtn').onclick = logout;
 
 /** Cuando otro dispositivo cambia algo, se redibuja lo que se esté viendo. */
+/**
+ * El 30 de agosto de 2026 se decidió cobrar todo en efectivo. Las comandas
+ * de ese día que ya se habían marcado con tarjeta o transferencia se pasan
+ * a efectivo para que el corte lleve todo el dinero junto. Va con fecha fija
+ * a propósito: no toca ningún otro día, ni antes ni después.
+ */
+const DIA_TODO_EFECTIVO = '2026-08-30';
+
+function pasarTodoAEfectivo() {
+  const os = allOrders();
+  let cambiadas = 0;
+  os.forEach((o) => {
+    if (o.date !== DIA_TODO_EFECTIVO || !o.payment) return;
+    if ((o.payment.method || 'Efectivo') === 'Efectivo') return;
+    o.payment.method = 'Efectivo';
+    o.updatedAt = new Date().toISOString();
+    cambiadas++;
+  });
+  if (cambiadas) DB.set('orders', os);
+  return cambiadas;
+}
+
 function onCloudChange() {
   if (!session) return;
   if ($('#modalRoot').innerHTML || $('#sheetRoot').innerHTML) return;  // no interrumpir una captura
@@ -4054,6 +4076,7 @@ async function arrancar() {
 
   sembrarDefaults();
   migrarInicio();
+  pasarTodoAEfectivo();
   applyBranding();
   actualizarEstadoNube();
 
