@@ -217,12 +217,9 @@ const esLlevar    = (o) => !!(o && o.delivery);
 /** Cocina terminó todo, sin importar si ya se cobró. */
 const cocinaLista = (o) => !!(o && o.items.length && o.items.every(itemReady));
 const empacado    = (o) => !!(o && o.delivery && o.delivery.packed);
-const entregado   = (o) => !!(o && o.delivery && o.delivery.delivered);
-/* Estas dos no miran el cobro: quien empaca marca "Empacado" y luego
-   "Entregado", y con eso el pedido sale de su pantalla. Si ya estaba pagado o
-   no, es cosa de caja. */
+/* La pantalla de empaque solo muestra lo que falta por empacar. Al marcarlo,
+   el pedido sale de ahí; el cobro es cosa de caja y no interviene. */
 const porEmpacar  = (o) => esLlevar(o) && cocinaLista(o) && !empacado(o);
-const porSalir    = (o) => esLlevar(o) && empacado(o) && !entregado(o);
 const orderItems$ = (o) => o.items.reduce((s, i) => s + i.price * i.qty, 0);
 /** Lo que se cobra: los productos más el envío, si es a domicilio. */
 const orderTotal  = (o) => orderItems$(o) + envioDe(o);
@@ -1797,8 +1794,6 @@ function renderEmpaque() {
   const delDia = dayOrders();
   const pendientes = delDia.filter(porEmpacar)
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-  const listos = delDia.filter(porSalir)
-    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   const enCocina = delDia.filter((o) => esLlevar(o) && !cocinaLista(o)).length;
 
   $('#pageContent').innerHTML = `
@@ -1812,12 +1807,7 @@ function renderEmpaque() {
       ? `<div class="empaque-grid">${pendientes.map(tarjetaEmpaque).join('')}</div>`
       : `<div class="empty"><div class="em-ic">${icon('bag', 22)}</div>
           <strong>Nada por empacar</strong>${enCocina ? 'Hay pedidos todavía en cocina; aparecen aquí en cuanto los marquen listos.'
-                                                     : 'Los pedidos para llevar llegan aquí cuando cocina los marca listos.'}</div>`}
-
-    ${listos.length ? `
-      <div class="section-head"><div><h3>Listos para salir</h3>
-        <p>Empacados, esperando que pasen por ellos o que salgan a domicilio.</p></div></div>
-      <div class="empaque-grid">${listos.map(tarjetaSalida).join('')}</div>` : ''}`;
+                                                     : 'Los pedidos para llevar llegan aquí cuando cocina los marca listos.'}</div>`}`;
 }
 
 function tarjetaEmpaque(o) {
@@ -1869,72 +1859,19 @@ function tarjetaEmpaque(o) {
   </article>`;
 }
 
-function tarjetaSalida(o) {
-  const d = o.delivery || {};
-  return `<article class="empaque-card salida">
-    <div class="ec-head">
-      <div>
-        <h4>${esc(o.customer || 'Para llevar')}</h4>
-        <small>#${esc(o.folio)} · empacado ${esc(d.packedAt || '')}${d.packedBy ? ' por ' + esc(d.packedBy) : ''}</small>
-      </div>
-      <span class="status ready">Listo</span>
-    </div>
-
-    <div class="ec-entrega ${d.mode === 'A domicilio' ? 'domicilio' : ''}">
-      ${icon(d.mode === 'A domicilio' ? 'bag' : 'user', 15)}
-      <div>
-        <b>${esc(d.mode || 'Pasan por él')}</b>
-        ${d.address ? `<span>${esc(d.address)}</span>` : ''}
-        ${d.phone ? `<span>Tel. ${esc(d.phone)}</span>` : ''}
-      </div>
-    </div>
-
-    <div class="ec-pie">
-      <div>
-        <b>${money(orderTotal(o))}</b>
-        <span class="${o.paid ? 'text-green' : 'text-red'}">${o.paid ? 'Ya pagado' : 'Por cobrar'}</span>
-      </div>
-      <div class="actions">
-        <button class="btn btn-line btn-sm" onclick="marcarEmpacado('${o.id}', true)">${icon('back', 15)}</button>
-        <button class="btn btn-wa btn-sm" onclick="enviarWhatsApp('${o.id}')">${icon('users', 15)}</button>
-        ${!o.paid && roleAllowed('cashier')
-          ? `<button class="btn btn-primary btn-sm" onclick="openPayment('${o.id}')">${icon('cash', 15)} Cobrar</button>`
-          : ''}
-        <button class="btn btn-success btn-sm" onclick="marcarEntregado('${o.id}')">${icon('check', 15)} Entregado</button>
-      </div>
-    </div>
-  </article>`;
-}
-
 /** Palomea un producto mientras se empaca. Es solo una ayuda visual. */
 function revisarItem(id) {
   if (revisados.has(id)) revisados.delete(id); else revisados.add(id);
   renderEmpaque();
 }
 
-function marcarEmpacado(oid, deshacer) {
+function marcarEmpacado(oid) {
   const os = allOrders(), o = os.find((x) => x.id === oid);
   if (!o || !o.delivery) return;
-  o.delivery = {
-    ...o.delivery,
-    packed: !deshacer,
-    packedAt: deshacer ? '' : hourMin(),
-    packedBy: deshacer ? '' : session.label,
-  };
-  if (deshacer) o.delivery.delivered = false;
+  o.delivery = { ...o.delivery, packed:true, packedAt:hourMin(), packedBy:session.label };
   DB.set('orders', os);
   o.items.forEach((i) => revisados.delete(i.id));
-  toast(deshacer ? 'Regresó a empaque' : `${o.customer || 'Pedido'} empacado`, 'ok');
-  refresh();
-}
-
-function marcarEntregado(oid) {
-  const os = allOrders(), o = os.find((x) => x.id === oid);
-  if (!o || !o.delivery) return;
-  if (!o.paid && !confirm(`Este pedido todavía no se cobra (${money(orderTotal(o))}). ¿Marcarlo como entregado de todos modos?`)) return;
-  o.delivery = { ...o.delivery, delivered: true, deliveredAt: hourMin() };
-  DB.set('orders', os);
-  toast('Pedido entregado', 'ok');
+  toast(`${o.customer || 'Pedido'} empacado`, 'ok');
   refresh();
 }
 
