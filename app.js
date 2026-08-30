@@ -2267,7 +2267,7 @@ function renderCut() {
   $('#pageContent').innerHTML = `
     <div class="grid grid-2" style="margin-top:0">
 
-    <div class="card">
+    <div class="card corte">
       <div class="card-head"><div><div class="card-title">Corte del día</div>
         <div class="card-sub">Todo el dinero de hoy, entre por donde entre.</div></div>
         ${icon('wallet', 20, 'muted')}</div>
@@ -2279,35 +2279,39 @@ function renderCut() {
           <input id="countedCash" type="number" inputmode="numeric" placeholder="0" class="big-amount" oninput="previewDifference(${c.expected})"></div>
       </div>
 
-      <div class="sub-titulo">${icon('cash', 15)} Efectivo · lo que pasa por la caja</div>
+      <div class="sub-titulo">${icon('cash', 15)} Efectivo · pasa por la caja</div>
       <div class="kv"><span>Fondo inicial</span><b>${money(c.fund)}</b></div>
       <div class="kv"><span>+ Ventas en efectivo${c.cuantas.Efectivo ? ` <i class="metodo-n">${c.cuantas.Efectivo}</i>` : ''}</span>
         <b class="text-green">${money(c.cashSales)}</b></div>
       ${c.tipsCash ? `<div class="kv"><span>+ Propinas en efectivo</span><b class="text-green">${money(c.tipsCash)}</b></div>` : ''}
       <div class="kv"><span>− Gastos pagados</span><b class="text-red">${money(c.spent)}</b></div>
-      <div class="total-line"><span>Efectivo que debe haber</span><b>${money(c.expected)}</b></div>
-      <div class="kv"><span>Diferencia contra lo contado</span><b id="diffPreview">${money(0)}</b></div>
+      <div class="cierre">
+        <div><span>Debe haber</span><b>${money(c.expected)}</b></div>
+        <div><span>Diferencia</span><b id="diffPreview">${money(0)}</b></div>
+      </div>
 
-      <div class="sub-titulo">${icon('trend', 15)} Tarjeta y transferencia · no pasan por la caja</div>
-      ${PAY_METHODS.filter((m) => m.id !== 'Efectivo').map((m) => {
-        const monto = c.porMetodo[m.id] || 0;
-        const prop = c.propinaMetodo[m.id] || 0;
-        const n = c.cuantas[m.id] || 0;
-        return `<div class="kv metodo ${monto || prop ? '' : 'vacio'}">
-            <span>${icon(m.icon, 16)} ${m.id}${n ? ` <i class="metodo-n">${n}</i>` : ''}</span>
-            <b>${money(monto)}</b>
-          </div>
-          ${prop ? `<div class="kv sangria"><span>propina en ${esc(m.id.toLowerCase())}</span><b>${money(prop)}</b></div>` : ''}`;
-      }).join('')}
-      <div class="total-line"><span>Total sin efectivo</span><b>${money(c.sales - c.cashSales + c.tipsCard)}</b></div>
+      ${(() => {
+        const otros = PAY_METHODS.filter((m) => m.id !== 'Efectivo')
+          .filter((m) => (c.porMetodo[m.id] || 0) || (c.propinaMetodo[m.id] || 0));
+        if (!otros.length) return '';
+        return `<div class="sub-titulo">${icon('trend', 15)} Tarjeta y transferencia · no pasan por la caja</div>
+          ${otros.map((m) => `
+            <div class="kv metodo">
+              <span>${icon(m.icon, 16)} ${m.id}${c.cuantas[m.id] ? ` <i class="metodo-n">${c.cuantas[m.id]}</i>` : ''}</span>
+              <b>${money(c.porMetodo[m.id] || 0)}</b>
+            </div>
+            ${c.propinaMetodo[m.id] ? `<div class="kv sangria"><span>propina</span><b>${money(c.propinaMetodo[m.id])}</b></div>` : ''}`).join('')}
+          <div class="total-line"><span>Total sin efectivo</span><b>${money(c.sales - c.cashSales + c.tipsCard)}</b></div>`;
+      })()}
 
       <div class="sub-titulo">${icon('chart', 15)} Total del día</div>
-      <div class="kv"><span>Venta cobrada</span><b>${money(c.sales)}</b></div>
-      ${c.tips ? `<div class="kv"><span>Propinas (de quien atiende)</span><b>${money(c.tips)}</b></div>` : ''}
-      ${c.pending ? `<div class="kv"><span>Todavía sin cobrar</span><b class="text-red">${money(c.pending)}</b></div>` : ''}
-      <div class="total-line"><span>Entró en total</span><b>${money(c.sales + c.tips)}</b></div>
+      <div class="resumen-fila">
+        <div><span>Venta cobrada</span><b>${money(c.sales)}</b></div>
+        ${c.tips ? `<div><span>Propinas</span><b>${money(c.tips)}</b></div>` : ''}
+        ${c.pending ? `<div><span>Sin cobrar</span><b class="text-red">${money(c.pending)}</b></div>` : ''}
+      </div>
 
-      <button class="btn btn-primary btn-lg full" style="margin-top:16px" onclick="saveCut()">
+      <button class="btn btn-primary btn-lg full" style="margin-top:14px" onclick="saveCut()">
         ${icon('check', 17)} Guardar corte del día</button>
     </div>
 

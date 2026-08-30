@@ -719,8 +719,35 @@ small{font-size:12px}
 .cut-box.dark span{color:rgba(255,255,255,.6)}
 .kv{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--line-2);font-size:13.5px}
 .kv:last-child{border-bottom:0}
+/* El corte tiene que caber de una sola vista, sin desplazar */
+.card.corte .kv{padding:7px 0;font-size:13px}
+.card.corte .field-grid{gap:10px;margin-bottom:2px}
+.card.corte .field input{padding:9px 12px}
+.card.corte .field>label{font-size:12px}
+.card.corte .big-amount{font-size:17px!important}
+.card.corte .total-line{padding-top:9px;margin-top:8px}
+.card.corte .total-line b{font-size:19px}
+.card.corte .total-line span{font-size:13px}
+.card.corte .card-head{margin-bottom:12px}
+
+.cierre{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;
+  margin-top:10px;padding-top:10px;border-top:2px solid var(--ink);
+}
+.cierre span{display:block;font-size:11.5px;color:var(--muted);font-weight:650}
+.cierre b{display:block;font-size:20px;font-weight:820;letter-spacing:-.02em;margin-top:2px;font-variant-numeric:tabular-nums}
+.cierre div:last-child{text-align:right}
+
+.resumen-fila{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+.resumen-fila div{
+  flex:1;min-width:90px;padding:9px 11px;border-radius:var(--r-sm);
+  background:var(--line-2);
+}
+.resumen-fila span{display:block;font-size:11px;color:var(--muted);font-weight:650}
+.resumen-fila b{display:block;font-size:16px;font-weight:820;margin-top:2px;font-variant-numeric:tabular-nums}
+
 .sub-titulo{
-  display:flex;align-items:center;gap:8px;margin:18px 0 6px;
+  display:flex;align-items:center;gap:8px;margin:14px 0 4px;
   font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
   color:var(--muted);
 }
