@@ -62,6 +62,9 @@ listo, con el cliente, la dirección, el teléfono y la hora acordada, más la l
 con palomita para ir verificando lo que ya se metió a la bolsa. Al marcarlo **Empacado**
 desaparece de la pantalla.
 
+- Aparecen **los dos tipos**: los que salen a domicilio y los que pasan a recoger, con su
+  etiqueta y su color. Arriba se ve cuántos hay de cada uno, y los de domicilio van primero
+  porque hay que salir a llevarlos.
 - Las comandas de mesa no aparecen: esta pantalla es solo de pedidos para llevar.
 - **No depende del cobro**: si el pedido ya estaba pagado o no, es cosa de caja.
 

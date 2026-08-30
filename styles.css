@@ -615,6 +615,17 @@ small{font-size:12px}
 .tc-progress{font-size:12px;color:var(--muted);font-weight:650;margin-bottom:4px}
 
 /* ---------- Empaque --------------------------------------------------- */
+.empaque-resumen{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.er-dato{
+  display:flex;align-items:center;gap:10px;padding:11px 16px;border-radius:var(--r);
+  border:1px solid var(--line);background:var(--surface);min-width:150px;
+}
+.er-dato b{display:block;font-size:19px;font-weight:820;line-height:1}
+.er-dato span{display:block;font-size:11.5px;color:var(--muted);font-weight:650;margin-top:2px}
+.er-dato .ic{color:var(--muted)}
+.er-dato.domicilio{background:var(--amber-soft);border-color:var(--amber-line)}
+.er-dato.domicilio .ic,.er-dato.domicilio b{color:var(--amber)}
+
 .empaque-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px;align-items:start}
 .empaque-card{
   background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
@@ -630,6 +641,8 @@ small{font-size:12px}
   background:var(--line-2);color:var(--ink-2);margin-bottom:12px;
 }
 .ec-entrega.domicilio{background:var(--amber-soft);border:1px solid var(--amber-line);color:var(--amber)}
+.ec-entrega.mostrador{background:var(--blue-soft);border:1px solid var(--blue-line);color:var(--blue)}
+.ec-entrega b{letter-spacing:.04em}
 .ec-entrega b{display:block;font-size:12.5px}
 .ec-entrega span{display:block;font-size:12px;opacity:.9;margin-top:2px;line-height:1.4}
 
@@ -1096,7 +1109,18 @@ small{font-size:12px}
   .cut-box strong{font-size:17px}
   .pay-total b{font-size:30px}
   .cash-display{font-size:24px}
-  .order-cards,.empaque-grid{grid-template-columns:1fr}
+  .order-cards,.empaque-resumen{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.er-dato{
+  display:flex;align-items:center;gap:10px;padding:11px 16px;border-radius:var(--r);
+  border:1px solid var(--line);background:var(--surface);min-width:150px;
+}
+.er-dato b{display:block;font-size:19px;font-weight:820;line-height:1}
+.er-dato span{display:block;font-size:11.5px;color:var(--muted);font-weight:650;margin-top:2px}
+.er-dato .ic{color:var(--muted)}
+.er-dato.domicilio{background:var(--amber-soft);border-color:var(--amber-line)}
+.er-dato.domicilio .ic,.er-dato.domicilio b{color:var(--amber)}
+
+.empaque-grid{grid-template-columns:1fr}
   .orders-bar{flex-direction:column}
   .orders-bar .btn{display:none}     /* en celular manda el botón flotante */
   .day-strip{gap:10px 16px;padding:12px 14px}

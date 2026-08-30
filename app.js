@@ -1792,8 +1792,12 @@ let revisados = new Set();
 
 function renderEmpaque() {
   const delDia = dayOrders();
+  const aDomicilio = (o) => (o.delivery && o.delivery.mode) === 'A domicilio';
+  // Primero los que hay que salir a llevar; entre iguales, el más viejo.
   const pendientes = delDia.filter(porEmpacar)
-    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    .sort((a, b) => (aDomicilio(b) - aDomicilio(a)) || (new Date(a.createdAt) - new Date(b.createdAt)));
+  const nDom = pendientes.filter(aDomicilio).length;
+  const nPasan = pendientes.length - nDom;
   const enCocina = delDia.filter((o) => esLlevar(o) && !cocinaLista(o)).length;
 
   $('#pageContent').innerHTML = `
@@ -1802,6 +1806,11 @@ function renderEmpaque() {
         <p>${pendientes.length ? `${pendientes.length} por empacar` : 'Nada por empacar'}${enCocina ? ` · ${enCocina} todavía en cocina` : ''}</p></div>
       <button class="btn btn-line btn-sm" onclick="refresh()">${icon('clock', 15)} Actualizar</button>
     </div>
+
+    ${pendientes.length ? `<div class="empaque-resumen">
+      <div class="er-dato domicilio">${icon('bag', 17)}<div><b>${nDom}</b><span>a domicilio</span></div></div>
+      <div class="er-dato">${icon('user', 17)}<div><b>${nPasan}</b><span>pasan por él</span></div></div>
+    </div>` : ''}
 
     ${pendientes.length
       ? `<div class="empaque-grid">${pendientes.map(tarjetaEmpaque).join('')}</div>`
@@ -1826,10 +1835,10 @@ function tarjetaEmpaque(o) {
       <span class="timer ${mins > 20 ? 'late' : mins > 10 ? 'warn' : ''}">${mins} min</span>
     </div>
 
-    <div class="ec-entrega ${d.mode === 'A domicilio' ? 'domicilio' : ''}">
-      ${icon(d.mode === 'A domicilio' ? 'bag' : 'user', 15)}
+    <div class="ec-entrega ${d.mode === 'A domicilio' ? 'domicilio' : 'mostrador'}">
+      ${icon(d.mode === 'A domicilio' ? 'bag' : 'user', 16)}
       <div>
-        <b>${esc(d.mode || 'Pasan por él')}</b>
+        <b>${d.mode === 'A domicilio' ? 'SALE A DOMICILIO' : 'PASAN POR ÉL'}</b>
         ${d.address ? `<span>${esc(d.address)}</span>` : ''}
         ${d.phone ? `<span>Tel. ${esc(d.phone)}</span>` : ''}
         ${d.eta ? `<span>Para las ${esc(d.eta)}</span>` : ''}
