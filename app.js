@@ -378,6 +378,7 @@ function abrirSesion(role, saludar) {
   $('#userRoleLabel').textContent = session.label;
   $('#userAvatar').textContent = session.label[0];
   applyBranding();
+  if (typeof anotarDispositivo === 'function') anotarDispositivo(session.label);
 
   // Se retoma la pestaña donde se quedó, si ese perfil la tiene permitida.
   const guardada = leerPagina();
@@ -2575,6 +2576,89 @@ function renderAdmin() {
 }
 function setAdminTab(t) { adminTab = t; renderAdmin(); }
 
+/** Cuánto hace que se usó un equipo, en palabras. */
+function haceCuanto(iso) {
+  const min = minutesSince(iso);
+  if (min < 2) return { texto:'Activo ahora', clase:'ahora' };
+  if (min < 60) return { texto:`hace ${min} min`, clase:'reciente' };
+  const h = Math.floor(min / 60);
+  if (h < 24) return { texto:`hace ${h} ${h === 1 ? 'hora' : 'horas'}`, clase:'reciente' };
+  const d = Math.floor(h / 24);
+  return { texto:`hace ${d} ${d === 1 ? 'día' : 'días'}`, clase:'viejo' };
+}
+
+/** Pinta la lista de equipos; se consulta aparte porque viene de la nube. */
+async function cargarEquipos() {
+  const caja = $('#listaEquipos');
+  if (!caja) return;
+
+  if (typeof Cloud === 'undefined' || !Cloud.online) {
+    caja.innerHTML = `<p class="muted" style="font-size:13px">
+      Este equipo no está conectado al negocio, así que no hay lista que mostrar.</p>`;
+    return;
+  }
+
+  const r = await listarDispositivos();
+  if (!$('#listaEquipos')) return;          // se cambió de pantalla mientras tanto
+
+  if (r.falta) {
+    caja.innerHTML = `<div class="cloud-msg err">
+      Falta crear la tabla de equipos: ejecuta <b>supabase-dispositivos.sql</b> en Supabase.</div>`;
+    return;
+  }
+  if (!r.lista.length) {
+    caja.innerHTML = `<p class="muted" style="font-size:13px">Todavía no hay equipos anotados.</p>`;
+    return;
+  }
+
+  const yo = idDispositivo();
+  caja.innerHTML = r.lista.map((d) => {
+    const cuando = haceCuanto(d.last_seen);
+    const esteEquipo = d.id === yo;
+    const movil = ['iPhone', 'Android'].includes(d.plataforma);
+    return `<div class="equipo ${cuando.clase} ${esteEquipo ? 'yo' : ''}">
+      <span class="eq-ic">${icon(movil ? 'user' : 'table', 18)}</span>
+      <div class="eq-datos">
+        <b>${esc(d.nombre || d.plataforma || 'Equipo')}${esteEquipo ? ' <i class="eq-yo">este</i>' : ''}</b>
+        <span>${esc(d.perfil || 'sin perfil')}${d.plataforma ? ' · ' + esc(d.plataforma) : ''}</span>
+      </div>
+      <div class="eq-estado"><i class="eq-punto"></i>${esc(cuando.texto)}</div>
+      <div class="actions">
+        <button class="btn btn-line btn-sm" title="Ponerle nombre"
+                onclick="pedirNombreEquipo('${esc(d.id)}','${esc(d.nombre || '')}')">${icon('edit', 14)}</button>
+        ${esteEquipo ? '' : `<button class="btn btn-line btn-sm" title="Quitar de la lista"
+                onclick="quitarEquipo('${esc(d.id)}')">${icon('trash', 14)}</button>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function pedirNombreEquipo(id, actual) {
+  openModal(`${modalHead('Equipo', 'Ponle un nombre')}
+    <div class="modal-body">
+      <div class="field"><label>¿Cómo le decimos?</label>
+        <input id="eqNombre" value="${esc(actual)}" placeholder="Ej. Tablet mesera, Cel de cocina"></div>
+      <p class="muted" style="font-size:12.5px">Sirve para reconocerlo en la lista.</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-line" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarNombreEquipo('${esc(id)}')">Guardar</button>
+    </div>`);
+}
+async function guardarNombreEquipo(id) {
+  const nombre = $('#eqNombre').value.trim();
+  closeModal();
+  const ok = await renombrarDispositivo(id, nombre);
+  toast(ok ? 'Nombre guardado' : 'No se pudo guardar', ok ? 'ok' : 'err');
+  cargarEquipos();
+}
+async function quitarEquipo(id) {
+  if (!confirm('Se quita de la lista. Si ese equipo vuelve a abrir el sistema, aparece otra vez. ¿Continuar?')) return;
+  const ok = await olvidarDispositivo(id);
+  toast(ok ? 'Equipo quitado' : 'No se pudo quitar', ok ? 'ok' : 'err');
+  cargarEquipos();
+}
+
 function renderAdminNegocio() {
   const users = getUsers();
   const tables = getTables().length - 1;
@@ -2612,6 +2696,17 @@ function renderAdminNegocio() {
         ${icon('shield', 20, 'muted')}
       </div>
       ${cloudCardBody()}
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="card-head">
+        <div><div class="card-title">Equipos conectados</div>
+          <div class="card-sub">Qué tabletas y celulares tienen abierto el sistema.</div></div>
+        ${icon('users', 20, 'muted')}
+      </div>
+      <div id="listaEquipos" class="equipos-lista">
+        <p class="muted" style="font-size:13px">Consultando…</p>
+      </div>
     </div>
 
     <div class="card" style="margin-top:16px">
@@ -2666,6 +2761,8 @@ function renderAdminNegocio() {
           ${icon('check', 16)} Guardar cambios</button>
       </div>
     </div>`;
+
+  cargarEquipos();
 }
 
 /** Cuerpo de la tarjeta de sincronización, según cómo esté este dispositivo. */
@@ -3678,7 +3775,11 @@ function tocarSyncChip() {
 }
 
 /** cloud.js llama aquí cada vez que sube algo o queda pendiente. */
-function onCloudStatus() { actualizarEstadoNube(); }
+function onCloudStatus() {
+  actualizarEstadoNube();
+  // Si Ajustes está abierto, la lista de equipos se refresca sola con el latido.
+  if ($('#listaEquipos')) cargarEquipos();
+}
 
 function actualizarEstadoNube() {
   const hayNube = typeof Cloud !== 'undefined' && !!cloudConfig();

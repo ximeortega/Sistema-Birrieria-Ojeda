@@ -363,6 +363,7 @@ function iniciarLatido() {
     if (!Cloud.online) return;
     if (typeof document !== 'undefined' && document.hidden) return;   // en reposo no gasta datos
     const hubo = await cloudRefrescar();
+    if (typeof session !== 'undefined' && session) anotarDispositivo(session.label);
     if (hubo && typeof onCloudChange === 'function') onCloudChange();
     if (typeof onCloudStatus === 'function') onCloudStatus();
   }, 10000);
@@ -546,6 +547,86 @@ async function cloudPushAll() {
     await cloudSyncArray(key, stateGet(key) || []);
   }
   cloudSyncSettings();
+}
+
+/* ---------- Dispositivos ------------------------------------------------ */
+/**
+ * Cada equipo se anota en una tabla propia con la hora en que se le vio por
+ * última vez. Así en Ajustes se puede saber qué tabletas siguen en uso, con
+ * qué perfil, y cuáles ya nadie abre.
+ */
+const DEVICE_KEY = 'bo_dispositivo';
+
+function idDispositivo() {
+  try {
+    let id = localStorage.getItem(DEVICE_KEY);
+    if (!id) {
+      id = 'eq-' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+      localStorage.setItem(DEVICE_KEY, id);
+    }
+    return id;
+  } catch { return 'eq-sin-guardar'; }
+}
+
+/** Nombre corto del aparato, para reconocerlo en la lista. */
+function plataformaDispositivo() {
+  const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+  if (/iPhone/i.test(ua)) return 'iPhone';
+  if (/iPad/i.test(ua)) return 'iPad';
+  if (/Android/i.test(ua)) return /Mobile/i.test(ua) ? 'Android' : 'Tablet Android';
+  if (/Windows/i.test(ua)) return 'Windows';
+  if (/Macintosh/i.test(ua)) return 'Mac';
+  return 'Otro';
+}
+
+let avisoDevices = false;   // la tabla puede no existir todavía
+
+async function anotarDispositivo(perfil) {
+  if (!Cloud.client || !Cloud.online) return;
+  try {
+    const fila = {
+      id: idDispositivo(),
+      perfil: perfil || null,
+      plataforma: plataformaDispositivo(),
+      last_seen: new Date().toISOString(),
+    };
+    const { error } = await Cloud.client.from('devices').upsert(fila, { onConflict: 'id' });
+    if (error) throw new Error(error.message);
+    avisoDevices = false;
+  } catch (e) {
+    // Si todavía no se creó la tabla, no vale la pena insistir en cada latido.
+    if (/devices/i.test(e.message)) avisoDevices = true;
+  }
+}
+
+/** Lista de equipos del negocio, del más reciente al más viejo. */
+async function listarDispositivos() {
+  if (!Cloud.client || !Cloud.online) return { falta: false, lista: [] };
+  try {
+    const { data, error } = await Cloud.client.from('devices').select('*').order('last_seen', { ascending: false });
+    if (error) throw new Error(error.message);
+    return { falta: false, lista: data || [] };
+  } catch (e) {
+    return { falta: true, error: e.message, lista: [] };
+  }
+}
+
+async function renombrarDispositivo(id, nombre) {
+  if (!Cloud.client || !Cloud.online) return false;
+  try {
+    const { error } = await Cloud.client.from('devices').update({ nombre }).eq('id', id);
+    if (error) throw new Error(error.message);
+    return true;
+  } catch { return false; }
+}
+
+async function olvidarDispositivo(id) {
+  if (!Cloud.client || !Cloud.online) return false;
+  try {
+    const { error } = await Cloud.client.from('devices').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+    return true;
+  } catch { return false; }
 }
 
 /* ---------- Tiempo real -------------------------------------------------- */
