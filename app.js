@@ -2561,7 +2561,6 @@ function deleteProduct(id) {
    9 · ADMINISTRACIÓN — perfiles, negocio y datos
    ========================================================================= */
 let adminTab = 'negocio';   // negocio | actividad | reportes
-let actDia = null;          // día que se está mirando en Actividad
 
 function renderAdmin() {
   // La actividad y los accesos son cosa del dueño.
@@ -2572,7 +2571,7 @@ function renderAdmin() {
       <button class="${adminTab === 'negocio' ? 'on' : ''}" onclick="setAdminTab('negocio')">
         ${icon('cog', 16)} Administración</button>
       ${esAdmin() ? `<button class="${adminTab === 'actividad' ? 'on' : ''}" onclick="setAdminTab('actividad')">
-        ${icon('shield', 16)} Actividad y seguridad</button>` : ''}
+        ${icon('users', 16)} Equipos y accesos</button>` : ''}
       <button class="${adminTab === 'reportes' ? 'on' : ''}" onclick="setAdminTab('reportes')">
         ${icon('download', 16)} Reportes y respaldo</button>
     </div>
@@ -2585,109 +2584,19 @@ function setAdminTab(t) { adminTab = t; renderAdmin(); }
 
 
 /* ---------- Actividad y seguridad --------------------------------------- */
-/** La hora guardada ("02:05 p.m.") vuelve a ser un momento del día. */
-function momentoDe(dia, hora) {
-  const d = new Date(dia + 'T00:00:00');
-  const m = String(hora || '').match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*([ap])?/i);
-  if (m) {
-    let h = Number(m[1]);
-    if (m[3]) {
-      const tarde = m[3].toLowerCase() === 'p';
-      if (h === 12) h = tarde ? 12 : 0; else if (tarde) h += 12;
-    }
-    d.setHours(h, Number(m[2]), 0, 0);
-  }
-  return d;
-}
-
-/** Todo lo que pasó en un día, con quién lo hizo, de lo más nuevo a lo más viejo. */
-function movimientosDe(dia) {
-  const M = [];
-
-  allOrders().filter((o) => o.date === dia).forEach((o) => {
-    M.push({ t:momentoDe(dia, o.createdTime), hora:o.createdTime, ic:'receipt', tono:'azul',
-      que:`Levantó ${o.table}`, quien:o.waiter, folio:o.folio, monto:orderTotal(o) });
-
-    if (o.items && o.items.length && o.items.every(itemReady))
-      M.push({ t:momentoDe(dia, o.createdTime), hora:'', ic:'fire', tono:'ambar',
-        que:`Cocina terminó ${o.table}`, quien:'Cocina', folio:o.folio, sinHora:true });
-
-    if (empacado(o))
-      M.push({ t:momentoDe(dia, o.delivery.packedAt), hora:o.delivery.packedAt, ic:'bag', tono:'ambar',
-        que:`Empacó ${o.table}`, quien:o.delivery.packedBy, folio:o.folio });
-
-    if (o.paid && o.payment)
-      M.push({ t:momentoDe(dia, o.payment.time), hora:o.payment.time, ic:'cash', tono:'verde',
-        que:`Cobró ${o.table} · ${o.payment.method || 'Efectivo'}`, quien:o.payment.cashier,
-        folio:o.folio, monto:orderTotal(o) + Number(o.payment.tip || 0) });
-  });
-
-  DB.get('expenses', []).filter((e) => e.date === dia).forEach((e) =>
-    M.push({ t:momentoDe(dia, e.time), hora:e.time, ic:'minus', tono:'rojo',
-      que:`Gasto · ${e.category || 'Otros'}`, quien:e.responsible,
-      detalle:e.description, monto:-Number(e.amount || 0) }));
-
-  DB.get('cuts', []).filter((c) => c.date === dia).forEach((c) =>
-    M.push({ t:momentoDe(dia, c.time), hora:c.time, ic:'chart', tono:'morado',
-      que:'Cerró el corte del día', quien:c.closedBy, monto:Number(c.counted || 0) }));
-
-  return M.sort((a, b) => b.t - a.t);
-}
-
-/** Cuántas cosas hizo cada perfil ese día. */
-function resumenPorPersona(movs) {
-  const r = {};
-  movs.forEach((m) => {
-    const q = m.quien || 'Sin registrar';
-    r[q] = (r[q] || 0) + 1;
-  });
-  return Object.entries(r).sort((a, b) => b[1] - a[1]);
-}
-
 function renderAdminActividad() {
-  if (!actDia) actDia = todayKey();
-  const movs = movimientosDe(actDia);
-  const gente = resumenPorPersona(movs);
   const users = getUsers();
 
   $('#adminBody').innerHTML = `
     <div class="card">
       <div class="card-head">
         <div><div class="card-title">Equipos conectados</div>
-          <div class="card-sub">Celulares y tabletas que tienen abierto el sistema.</div></div>
+          <div class="card-sub" id="resumenEquipos">Celulares y tabletas que tienen abierto el sistema.</div></div>
         ${icon('users', 20, 'muted')}
       </div>
       <div id="listaEquipos" class="equipos-lista">
         <p class="muted" style="font-size:13px">Consultando…</p>
       </div>
-    </div>
-
-    <div class="card" style="margin-top:16px">
-      <div class="card-head">
-        <div><div class="card-title">Qué se hizo</div>
-          <div class="card-sub">Cada movimiento del día y quién lo hizo.</div></div>
-        <input type="date" class="fecha-chip" value="${actDia}" max="${todayKey()}"
-               onchange="verActividadDe(this.value)">
-      </div>
-
-      ${gente.length ? `<div class="quien-hizo">
-        ${gente.map(([q, n]) => `<span class="chip-persona">${esc(q)} <i>${n}</i></span>`).join('')}
-      </div>` : ''}
-
-      ${movs.length ? `<div class="movs">
-        ${movs.map((m) => `<div class="mov ${m.tono}">
-          <span class="mov-ic">${icon(m.ic, 16)}</span>
-          <div class="mov-txt">
-            <b>${esc(m.que)}${m.folio ? ` <i class="mov-folio">#${esc(m.folio)}</i>` : ''}</b>
-            <span>${esc(m.quien || 'Sin registrar')}${m.detalle ? ' · ' + esc(m.detalle) : ''}</span>
-          </div>
-          <div class="mov-lado">
-            ${m.monto ? `<b class="${m.monto < 0 ? 'text-red' : ''}">${money(Math.abs(m.monto))}</b>` : ''}
-            <span>${m.sinHora ? '' : esc(m.hora || '')}</span>
-          </div>
-        </div>`).join('')}
-      </div>` : `<div class="empty" style="padding:26px 0">
-        ${icon('clock', 34, 'muted')}<p>Ese día no se registró ningún movimiento.</p></div>`}
     </div>
 
     <div class="card" style="margin-top:16px">
@@ -2721,8 +2630,6 @@ function renderAdminActividad() {
 
   cargarEquipos();
 }
-
-function verActividadDe(dia) { actDia = dia || todayKey(); renderAdminActividad(); }
 
 /** Cuánto hace que se usó un equipo, en palabras. */
 function haceCuanto(iso) {
@@ -2760,6 +2667,7 @@ async function cargarEquipos() {
   }
 
   marcarUltimasEntradas(r.lista);
+  resumirEquipos(r.lista);
 
   const yo = idDispositivo();
   caja.innerHTML = r.lista.map((d) => {
@@ -2781,6 +2689,16 @@ async function cargarEquipos() {
       </div>
     </div>`;
   }).join('');
+}
+
+/** Renglón de arriba: cuántos equipos hay y cuántos siguen despiertos. */
+function resumirEquipos(lista) {
+  const caja = $('#resumenEquipos');
+  if (!caja) return;
+  const total = (lista || []).length;
+  const activos = (lista || []).filter((d) => minutesSince(d.last_seen) < 2).length;
+  caja.textContent = !total ? 'Ningún equipo anotado todavía.'
+    : `${total} ${total === 1 ? 'equipo' : 'equipos'} · ${activos} ${activos === 1 ? 'abierto ahora' : 'abiertos ahora'}`;
 }
 
 /** En "Quién entra a qué", cada perfil muestra cuándo se le vio por última vez. */
