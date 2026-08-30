@@ -2265,7 +2265,7 @@ function renderCut() {
   const cuts = [...DB.get('cuts', [])].sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
 
   $('#pageContent').innerHTML = `
-    <div class="grid grid-2" style="margin-top:0">
+    <div class="grid grid-b" style="margin-top:0">
 
     <div class="card corte">
       <div class="card-head"><div><div class="card-title">Corte del día</div>
