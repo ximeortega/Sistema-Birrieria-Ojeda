@@ -2560,76 +2560,51 @@ function deleteProduct(id) {
 /* =========================================================================
    9 · ADMINISTRACIÓN — perfiles, negocio y datos
    ========================================================================= */
-let adminTab = 'negocio';   // negocio | actividad | reportes
+let adminTab = 'negocio';   // negocio, equipos o reportes
 
 function renderAdmin() {
-  // La actividad y los accesos son cosa del dueño.
-  if (adminTab === 'actividad' && !esAdmin()) adminTab = 'negocio';
+  // Saber quién tiene abierto el sistema es cosa del dueño.
+  if (adminTab === 'equipos' && !esAdmin()) adminTab = 'negocio';
 
   $('#pageContent').innerHTML = `
     <div class="subtabs">
       <button class="${adminTab === 'negocio' ? 'on' : ''}" onclick="setAdminTab('negocio')">
         ${icon('cog', 16)} Administración</button>
-      ${esAdmin() ? `<button class="${adminTab === 'actividad' ? 'on' : ''}" onclick="setAdminTab('actividad')">
-        ${icon('users', 16)} Equipos y accesos</button>` : ''}
+      ${esAdmin() ? `<button class="${adminTab === 'equipos' ? 'on' : ''}" onclick="setAdminTab('equipos')">
+        ${icon('users', 16)} Equipos conectados</button>` : ''}
       <button class="${adminTab === 'reportes' ? 'on' : ''}" onclick="setAdminTab('reportes')">
         ${icon('download', 16)} Reportes y respaldo</button>
     </div>
     <div id="adminBody"></div>`;
   if (adminTab === 'negocio') renderAdminNegocio();
-  else if (adminTab === 'actividad') renderAdminActividad();
+  else if (adminTab === 'equipos') renderAdminEquipos();
   else renderAdminReportes();
 }
 function setAdminTab(t) { adminTab = t; renderAdmin(); }
 
 
 /* ---------- Actividad y seguridad --------------------------------------- */
-function renderAdminActividad() {
-  const users = getUsers();
-
+function renderAdminEquipos() {
   $('#adminBody').innerHTML = `
     <div class="card">
       <div class="card-head">
-        <div><div class="card-title">Equipos conectados</div>
-          <div class="card-sub" id="resumenEquipos">Celulares y tabletas que tienen abierto el sistema.</div></div>
+        <div><div class="card-title">Quién tiene abierto el sistema</div>
+          <div class="card-sub" id="resumenEquipos">Consultando…</div></div>
         ${icon('users', 20, 'muted')}
       </div>
       <div id="listaEquipos" class="equipos-lista">
         <p class="muted" style="font-size:13px">Consultando…</p>
       </div>
-    </div>
-
-    <div class="card" style="margin-top:16px">
-      <div class="card-head">
-        <div><div class="card-title">Quién entra a qué</div>
-          <div class="card-sub">Los accesos de cada perfil y su última entrada.</div></div>
-        ${icon('shield', 20, 'muted')}
-      </div>
-
-      ${Object.entries(users).map(([k, u]) => {
-        const fabrica = DEFAULT_USERS[k] && u.pin === DEFAULT_USERS[k].pin;
-        return `<div class="acceso">
-          <span class="ac-ic">${icon(u.icon || 'user', 17)}</span>
-          <div class="ac-datos">
-            <b>${esc(u.label)}
-              ${fabrica ? `<i class="ac-aviso">${icon('alert', 12)} PIN de fábrica</i>` : ''}</b>
-            <div class="tab-tags">
-              ${navOf(k).map((n) => `<span class="tab-tag">${n[2]}</span>`).join('') || '<span class="tab-tag">sin acceso</span>'}
-              ${k === 'admin' ? '<span class="tab-tag fuerte">borra comandas</span>' : ''}
-            </div>
-          </div>
-          <span class="ac-ultima" data-perfil="${esc(u.label)}">—</span>
-        </div>`;
-      }).join('')}
-
-      ${Object.entries(users).some(([k, u]) => DEFAULT_USERS[k] && u.pin === DEFAULT_USERS[k].pin)
-        ? `<div class="cloud-msg warn" style="margin-top:12px">
-            Hay perfiles con el PIN que venía de fábrica. Cámbialos en
-            <b>Administración → Perfiles</b> para que nadie de fuera pueda entrar.</div>` : ''}
+      <p class="muted" style="font-size:12.5px;margin-top:12px">
+        Cada celular o tableta que abre el link aparece aquí por separado, aunque varias
+        personas entren con el mismo perfil. Ponle el nombre de quien lo usa para reconocerlo.</p>
     </div>`;
 
   cargarEquipos();
 }
+
+/** "30 ago" — para decir desde cuándo un equipo abre el sistema. */
+const diaCorto = (iso) => new Date(iso).toLocaleDateString('es-MX', { day:'numeric', month:'short' });
 
 /** Cuánto hace que se usó un equipo, en palabras. */
 function haceCuanto(iso) {
@@ -2666,7 +2641,6 @@ async function cargarEquipos() {
     return;
   }
 
-  marcarUltimasEntradas(r.lista);
   resumirEquipos(r.lista);
 
   const yo = idDispositivo();
@@ -2674,15 +2648,22 @@ async function cargarEquipos() {
     const cuando = haceCuanto(d.last_seen);
     const esteEquipo = d.id === yo;
     const movil = ['iPhone', 'Android'].includes(d.plataforma);
-    return `<div class="equipo ${cuando.clase} ${esteEquipo ? 'yo' : ''}">
+    const detalle = [
+      d.plataforma,
+      d.perfil ? 'entra como ' + d.perfil : null,
+      d.created_at ? 'desde el ' + diaCorto(d.created_at) : null,
+    ].filter(Boolean).join(' · ');
+
+    return `<div class="equipo ${cuando.clase} ${esteEquipo ? 'yo' : ''} ${d.nombre ? '' : 'sinnombre'}">
       <span class="eq-ic">${icon(movil ? 'user' : 'table', 18)}</span>
       <div class="eq-datos">
-        <b>${esc(d.nombre || d.plataforma || 'Equipo')}${esteEquipo ? ' <i class="eq-yo">este</i>' : ''}</b>
-        <span>${esc(d.perfil || 'sin perfil')}${d.plataforma ? ' · ' + esc(d.plataforma) : ''}</span>
+        <b>${d.nombre ? esc(d.nombre) : 'Sin identificar'}${esteEquipo ? ' <i class="eq-yo">este</i>' : ''}</b>
+        <span>${esc(detalle)}</span>
       </div>
       <div class="eq-estado"><i class="eq-punto"></i>${esc(cuando.texto)}</div>
       <div class="actions">
-        <button class="btn btn-line btn-sm" title="Ponerle nombre"
+        <button class="btn ${d.nombre ? 'btn-line' : 'btn-primary'} btn-sm"
+                title="${d.nombre ? 'Cambiar el nombre' : 'Decir quién lo usa'}"
                 onclick="pedirNombreEquipo('${esc(d.id)}','${esc(d.nombre || '')}')">${icon('edit', 14)}</button>
         ${esteEquipo ? '' : `<button class="btn btn-line btn-sm" title="Quitar de la lista"
                 onclick="quitarEquipo('${esc(d.id)}')">${icon('trash', 14)}</button>`}
@@ -2697,32 +2678,19 @@ function resumirEquipos(lista) {
   if (!caja) return;
   const total = (lista || []).length;
   const activos = (lista || []).filter((d) => minutesSince(d.last_seen) < 2).length;
-  caja.textContent = !total ? 'Ningún equipo anotado todavía.'
-    : `${total} ${total === 1 ? 'equipo' : 'equipos'} · ${activos} ${activos === 1 ? 'abierto ahora' : 'abiertos ahora'}`;
-}
-
-/** En "Quién entra a qué", cada perfil muestra cuándo se le vio por última vez. */
-function marcarUltimasEntradas(lista) {
-  const ultimo = {};
-  (lista || []).forEach((d) => {
-    if (!d.perfil) return;
-    if (!ultimo[d.perfil] || new Date(d.last_seen) > new Date(ultimo[d.perfil])) ultimo[d.perfil] = d.last_seen;
-  });
-  $$('.ac-ultima').forEach((el) => {
-    const cuando = ultimo[el.getAttribute('data-perfil')];
-    if (!cuando) { el.textContent = 'sin entrar'; el.className = 'ac-ultima nunca'; return; }
-    const h = haceCuanto(cuando);
-    el.textContent = h.texto;
-    el.className = 'ac-ultima ' + h.clase;
-  });
+  const sinNombre = (lista || []).filter((d) => !d.nombre).length;
+  caja.textContent = !total ? 'Todavía nadie ha abierto el link.'
+    : `${total} ${total === 1 ? 'equipo' : 'equipos'} · ${activos} ${activos === 1 ? 'abierto ahora' : 'abiertos ahora'}`
+      + (sinNombre ? ` · ${sinNombre} sin identificar` : '');
 }
 
 function pedirNombreEquipo(id, actual) {
-  openModal(`${modalHead('Equipo', 'Ponle un nombre')}
+  openModal(`${modalHead('Equipo', '¿Quién lo usa?')}
     <div class="modal-body">
-      <div class="field"><label>¿Cómo le decimos?</label>
-        <input id="eqNombre" value="${esc(actual)}" placeholder="Ej. Tablet mesera, Cel de cocina"></div>
-      <p class="muted" style="font-size:12.5px">Sirve para reconocerlo en la lista.</p>
+      <div class="field"><label>Nombre de la persona</label>
+        <input id="eqNombre" value="${esc(actual)}" placeholder="Ej. Lupita, Don Chuy, Tablet de la barra"></div>
+      <p class="muted" style="font-size:12.5px">
+        Así sabes quién es quién, aunque varias personas entren con el mismo perfil.</p>
     </div>
     <div class="modal-foot">
       <button class="btn btn-line" onclick="closeModal()">Cancelar</button>
