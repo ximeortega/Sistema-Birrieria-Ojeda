@@ -304,7 +304,7 @@ function openModal(html, variant = '') {
   $('#modalRoot').innerHTML =
     `<div class="modal-backdrop" onclick="if(event.target===this) closeModal()"><div class="modal ${cls}">${html}</div></div>`;
 }
-function closeModal() { $('#modalRoot').innerHTML = ''; }
+function closeModal() { $('#modalRoot').innerHTML = ''; aplicarRecarga(); }
 
 function modalHead(eyebrow, title) {
   return `<div class="modal-head"><div><p class="eyebrow red">${esc(eyebrow)}</p><h3>${esc(title)}</h3></div>
@@ -315,6 +315,7 @@ function closeSheet() {
   $('#sheetRoot').innerHTML = '';
   document.body.style.overflow = '';
   draft = null;
+  aplicarRecarga();
 }
 
 /* =========================================================================
@@ -2598,13 +2599,64 @@ function renderAdminEquipos() {
       <div id="listaEquipos" class="equipos-lista">
         <p class="muted" style="font-size:13px">Consultando…</p>
       </div>
+      <div id="estadoEsteEquipo"></div>
       <p class="muted" style="font-size:12.5px;margin-top:12px">
         Aquí están todos los celulares y tabletas que han abierto el link, sigan o no
         adentro. Cada aparato va por separado, aunque varias personas entren con el mismo
         perfil. Ponle el nombre de quien lo usa para reconocerlo.</p>
+      <p class="muted" style="font-size:12.5px;margin-top:8px">
+        Un equipo se anota la primera vez que abre la página con la versión de hoy.
+        Si a alguien no lo ves, que cierre la pestaña y vuelva a entrar al link.</p>
     </div>`;
 
   cargarEquipos();
+}
+
+/* ---------- Que nadie se quede con una versión vieja ------------------- */
+/**
+ * Un celular con la página abierta desde ayer sigue con el código de ayer:
+ * no se entera de precios nuevos ni de arreglos. Cada rato se le pregunta al
+ * servidor si el archivo cambió y, si cambió, la página se recarga sola en
+ * cuanto la persona no esté a media captura.
+ */
+let firmaApp = null;
+let tocaRecargar = false;
+
+async function firmaDeLaPagina() {
+  try {
+    const r = await fetch('app.js', { method:'HEAD', cache:'no-store' });
+    return r.headers.get('etag') || r.headers.get('last-modified') || null;
+  } catch { return null; }
+}
+
+/** Nadie pierde una comanda a medias por una actualización. */
+function estorbaRecargar() {
+  return !!draft
+    || !!($('#modalRoot') && $('#modalRoot').innerHTML.trim())
+    || !!($('#sheetRoot') && $('#sheetRoot').innerHTML.trim());
+}
+
+async function revisarVersion() {
+  if (!firmaApp) return;
+  const ahora = await firmaDeLaPagina();
+  if (!ahora || ahora === firmaApp) return;
+  tocaRecargar = true;
+  aplicarRecarga();
+}
+
+function aplicarRecarga() {
+  if (!tocaRecargar || estorbaRecargar()) return;
+  toast('Actualizando el sistema…', 'ok');
+  setTimeout(() => location.reload(), 900);
+}
+
+async function vigilarVersion() {
+  firmaApp = await firmaDeLaPagina();
+  if (!firmaApp) return;                       // sin firma no hay con qué comparar
+  setInterval(revisarVersion, 3 * 60000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) revisarVersion();
+  });
 }
 
 /** Qué dibujo le toca a cada aparato. */
@@ -2689,6 +2741,7 @@ async function cargarEquipos() {
   resumirEquipos(r.lista);
 
   equiposVistos = r.lista;
+  mostrarEstadoEquipo();
 
   const yo = idDispositivo();
   const pintar = (d) => {
@@ -2725,6 +2778,21 @@ async function cargarEquipos() {
     if (!suyos.length) return '';
     return `<div class="eq-bloque">${esc(titulo)} <i>${suyos.length}</i></div>` + suyos.map(pintar).join('');
   }).join('');
+}
+
+/** Si este equipo no logró anotarse, se dice por qué en vez de callarlo. */
+function mostrarEstadoEquipo() {
+  const caja = $('#estadoEsteEquipo');
+  if (!caja) return;
+  if (typeof estadoDeEsteEquipo !== 'function') { caja.innerHTML = ''; return; }
+
+  const e = estadoDeEsteEquipo();
+  caja.innerHTML = e.error
+    ? `<div class="cloud-msg err" style="margin-top:12px">
+        No se pudo anotar este equipo: ${esc(e.error)}<br>
+        <span style="opacity:.8">Si dice que falta la tabla o una columna, corre en Supabase
+        <b>supabase-dispositivos.sql</b> y <b>supabase-dispositivos-2.sql</b>.</span></div>`
+    : '';
 }
 
 /** Renglón de arriba: cuántos equipos hay y cuántos siguen despiertos. */
@@ -3829,6 +3897,7 @@ async function arrancar() {
   const recordado = leerSesion();
   if (!recordado || !abrirSesion(recordado, false)) mostrarLogin();
   ocultarCargando(aviso);
+  vigilarVersion();
 }
 
 /**

@@ -618,8 +618,9 @@ function apuntarRato() {
   return ratos;
 }
 
-let avisoDevices = false;      // la tabla puede no existir todavía
-let sinColumnasNuevas = false; // ni las columnas de navegador e historial
+let sinColumnasNuevas = false;  // las columnas de navegador e historial pueden faltar
+let errorEquipo = null;         // por qué no se pudo anotar este equipo, si es que falló
+let anotado = false;            // ¿ya quedó anotado en la nube?
 
 async function anotarDispositivo(perfil) {
   if (!Cloud.client || !Cloud.online) return;
@@ -644,11 +645,19 @@ async function anotarDispositivo(perfil) {
       ({ error } = await Cloud.client.from('devices').upsert(fila, { onConflict: 'id' }));
     }
     if (error) throw new Error(error.message);
-    avisoDevices = false;
+    errorEquipo = null;
+    anotado = true;
   } catch (e) {
-    // Si todavía no se creó la tabla, no vale la pena insistir en cada latido.
-    if (/devices/i.test(e.message)) avisoDevices = true;
+    // El problema se guarda para poder verlo en Ajustes, no se esconde.
+    errorEquipo = e.message;
+    anotado = false;
   }
+}
+
+/** Cómo le fue a este equipo al anotarse. Se consulta desde Ajustes. */
+function estadoDeEsteEquipo() {
+  return { id: idDispositivo(), anotado, error: errorEquipo,
+           aparato: plataformaDispositivo(), navegador: navegadorDispositivo() };
 }
 
 /** Lista de equipos del negocio, del más reciente al más viejo. */
