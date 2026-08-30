@@ -764,6 +764,11 @@ small{font-size:12px}
 }
 .caja-dinero .cierre,
 .caja-dinero .total-line{margin-top:auto}
+.caja-dinero .kv{padding:6px 0;font-size:13px;border:0}
+.caja-dinero .kv span{color:var(--muted);font-weight:650}
+.caja-dinero .kv b{font-weight:730}
+.caja-dinero .cierre b{font-size:18px}
+.caja-dinero .cierre span{font-size:11px}
 
 .cierre{
   display:grid;grid-template-columns:1fr 1fr;gap:10px;
@@ -772,6 +777,8 @@ small{font-size:12px}
 .cierre span{display:block;font-size:11.5px;color:var(--muted);font-weight:650}
 .cierre b{display:block;font-size:20px;font-weight:820;letter-spacing:-.02em;margin-top:2px;font-variant-numeric:tabular-nums}
 .cierre div:last-child{text-align:right}
+.cierre.una{grid-template-columns:1fr}
+.cierre.una div:last-child{text-align:left}
 
 .resumen-fila{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
 .resumen-fila div{
@@ -801,6 +808,7 @@ small{font-size:12px}
 .kv.metodo span{display:flex;align-items:center;gap:8px}
 .kv.metodo .ic{color:var(--muted)}
 .kv.metodo.vacio{opacity:.45}
+.caja-dinero .kv.vacio{opacity:.42}
 .metodo-n{
   font-style:normal;font-size:10.5px;font-weight:800;padding:1px 6px;border-radius:999px;
   background:var(--line-2);color:var(--muted);

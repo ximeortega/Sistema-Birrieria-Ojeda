@@ -2300,10 +2300,10 @@ function renderCut() {
         <div class="caja-dinero efectivo">
           <div class="cd-head">${icon('cash', 15)} Efectivo <small>pasa por la caja</small></div>
           <div class="kv"><span>Fondo inicial</span><b>${money(c.fund)}</b></div>
-          <div class="kv"><span>+ Ventas${c.cuantas.Efectivo ? ` <i class="metodo-n">${c.cuantas.Efectivo}</i>` : ''}</span>
-            <b class="text-green">${money(c.cashSales)}</b></div>
-          ${c.tipsCash ? `<div class="kv"><span>+ Propinas</span><b class="text-green">${money(c.tipsCash)}</b></div>` : ''}
-          <div class="kv"><span>− Gastos pagados</span><b class="text-red">${money(c.spent)}</b></div>
+          <div class="kv"><span>Ventas${c.cuantas.Efectivo ? ` <i class="metodo-n">${c.cuantas.Efectivo}</i>` : ''}</span>
+            <b>${money(c.cashSales)}</b></div>
+          <div class="kv"><span>Propinas</span><b>${money(c.tipsCash)}</b></div>
+          <div class="kv"><span>Gastos pagados</span><b class="${c.spent ? 'text-red' : ''}">− ${money(c.spent)}</b></div>
           <div class="cierre">
             <div><span>Debe haber</span><b>${money(c.expected)}</b></div>
             <div><span>Diferencia</span><b id="diffPreview">${money(0)}</b></div>
@@ -2312,17 +2312,15 @@ function renderCut() {
 
         <div class="caja-dinero digital">
           <div class="cd-head">${icon('trend', 15)} Transferencia y tarjeta <small>no pasan por la caja</small></div>
-          ${PAY_METHODS.filter((m) => m.id !== 'Efectivo').map((m) => {
-            const monto = c.porMetodo[m.id] || 0;
-            const propina = c.propinaMetodo[m.id] || 0;
-            const n = c.cuantas[m.id] || 0;
-            return `<div class="kv metodo ${monto || propina ? '' : 'vacio'}">
-                <span>${icon(m.icon, 16)} ${m.id}${n ? ` <i class="metodo-n">${n}</i>` : ''}</span>
-                <b>${money(monto)}</b>
-              </div>
-              ${propina ? `<div class="kv sangria"><span>propina</span><b>${money(propina)}</b></div>` : ''}`;
-          }).join('')}
-          <div class="total-line"><span>Total sin efectivo</span><b>${money(c.sinEfectivo)}</b></div>
+          ${PAY_METHODS.filter((m) => m.id !== 'Efectivo').map((m) => `
+            <div class="kv ${(c.porMetodo[m.id] || 0) ? '' : 'vacio'}">
+              <span>${esc(m.id)}${c.cuantas[m.id] ? ` <i class="metodo-n">${c.cuantas[m.id]}</i>` : ''}</span>
+              <b>${money(c.porMetodo[m.id] || 0)}</b>
+            </div>`).join('')}
+          <div class="kv ${c.tipsCard ? '' : 'vacio'}"><span>Propinas</span><b>${money(c.tipsCard)}</b></div>
+          <div class="cierre una">
+            <div><span>Total recibido</span><b>${money(c.sinEfectivo)}</b></div>
+          </div>
         </div>
 
       </div>
@@ -2335,39 +2333,13 @@ function renderCut() {
         <div class="gt-todo"><span>Debes tener en total</span><b>${money(c.totalEsperado)}</b></div>
       </div>
 
-      <div class="sub-titulo">${icon('chart', 15)} Total del día
-        <i class="al-momento">al momento · ${hourMin()}</i></div>
-      <div class="resumen-fila">
-        <div><span>Venta cobrada</span><b>${money(c.sales)}</b>
-          ${(() => {
-            // De dónde salió esa venta, para no tener que buscarlo arriba.
-            const partes = PAY_METHODS.filter((m) => c.porMetodo[m.id])
-              .map((m) => `${money(c.porMetodo[m.id])} ${m.id.toLowerCase()}`);
-            return partes.length > 1 ? `<small>${partes.join(' + ')}</small>` : '';
-          })()}
-        </div>
-        <div><span>Propinas</span><b>${money(c.tips)}</b>
-          ${c.tips && c.tipsCash && c.tipsCard
-            ? `<small>${money(c.tipsCash)} efectivo + ${money(c.tipsCard)} transferencia</small>` : ''}
-        </div>
-        <div><span>Sin cobrar</span><b class="${c.pending ? 'text-red' : ''}">${money(c.pending)}</b>
-          ${c.pending ? `<small>${c.open.length} comanda${c.open.length === 1 ? '' : 's'} abierta${c.open.length === 1 ? '' : 's'}</small>` : ''}
-        </div>
-        <div><span>Gastos del día</span><b class="${c.spent ? 'text-red' : ''}">${money(c.spent)}</b>
-          ${c.spent ? `<small>${c.expenses.length} gasto${c.expenses.length === 1 ? '' : 's'} registrado${c.expenses.length === 1 ? '' : 's'}</small>` : ''}
-        </div>
-        <div><span>Utilidad</span><b class="${c.utility >= 0 ? 'text-green' : 'text-red'}">${money(c.utility)}</b>
-          <small>venta − gastos</small>
-        </div>
-      </div>
-
       <button class="btn btn-primary btn-lg full" style="margin-top:14px" onclick="saveCut()">
         ${icon('check', 17)} Guardar corte del día</button>
     </div>
 
     <div class="card">
       <div class="card-head"><div><div class="card-title">Resumen del día</div>
-        <div class="card-sub" style="text-transform:capitalize">${dateText()}</div></div>
+        <div class="card-sub"><span style="text-transform:capitalize">${dateText()}</span> · al momento ${hourMin()}</div></div>
         ${icon('receipt', 20, 'muted')}</div>
       <div class="kv"><span>Comandas levantadas</span><b>${c.orders.length}</b></div>
       <div class="kv"><span>Tickets cobrados</span><b>${c.paid.length}</b></div>
@@ -2375,9 +2347,12 @@ function renderCut() {
       <div class="kv"><span>Piezas vendidas</span><b>${num(c.pieces)}</b></div>
       <div class="kv"><span>Ticket promedio</span><b>${money(c.ticket)}</b></div>
       <div class="divider"></div>
-      <div class="kv"><span>Venta cobrada</span><b class="text-green">${money(c.sales)}</b></div>
-      <div class="kv"><span>Gastos del día</span><b class="text-red">${money(c.spent)}</b></div>
-      <div class="total-line"><span>Utilidad</span><b class="${c.utility >= 0 ? 'text-green' : 'text-red'}">${money(c.utility)}</b></div>
+      <div class="kv"><span>Venta cobrada</span><b>${money(c.sales)}</b></div>
+      <div class="kv"><span>Propinas</span><b>${money(c.tips)}</b></div>
+      <div class="kv"><span>Sin cobrar</span><b class="${c.pending ? 'text-red' : ''}">${money(c.pending)}</b></div>
+      <div class="kv"><span>Gastos del día</span><b class="${c.spent ? 'text-red' : ''}">${money(c.spent)}</b></div>
+      <div class="total-line"><span>Utilidad</span>
+        <b class="${c.utility >= 0 ? 'text-green' : 'text-red'}">${money(c.utility)}</b></div>
     </div>
     </div>
 
