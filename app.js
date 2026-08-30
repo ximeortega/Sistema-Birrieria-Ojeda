@@ -2569,10 +2569,10 @@ function renderAdminReportes() {
       <div class="field" style="max-width:340px;margin-bottom:16px">
         <label>¿De qué periodo?</label>
         <select id="repRange">
-          <option value="hoy">Hoy</option>
+          <option value="hoy" selected>Hoy</option>
           <option value="ayer">Ayer</option>
           <option value="semana">Últimos 7 días</option>
-          <option value="mes" selected>Este mes</option>
+          <option value="mes">Este mes</option>
           <option value="mesant">Mes anterior</option>
           <option value="todo">Todo el histórico</option>
         </select>
@@ -2986,7 +2986,7 @@ const REPORTES = [
     pdfCols:[0,1,2,5,6,9,10], detalle:'Historial de cierres con su diferencia' },
 ];
 
-let repSeleccion = ['corte', 'resumen', 'ventas', 'gastos'];
+let repSeleccion = ['corte', 'gastos'];   // lo del cierre diario, que es lo que más se baja
 
 function toggleReporte(id) {
   const i = repSeleccion.indexOf(id);
