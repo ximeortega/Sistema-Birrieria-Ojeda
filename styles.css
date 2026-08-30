@@ -744,6 +744,35 @@ small{font-size:12px}
 .gt-todo b{font-size:25px;letter-spacing:-.02em}
 .gt-signo{font-style:normal;font-size:15px;font-weight:800;opacity:.45;flex:none}
 
+.col-lado{display:flex;flex-direction:column;gap:16px}
+
+.calc-visor{
+  border-radius:var(--r);background:var(--ink);color:#fff;
+  padding:12px 15px;text-align:right;margin-bottom:10px;
+}
+.calc-visor span{
+  display:block;min-height:15px;font-size:12px;font-weight:650;opacity:.55;
+  font-variant-numeric:tabular-nums;
+}
+.calc-visor b{
+  display:block;font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.15;
+  font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;
+}
+.calc-teclas{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.ct{
+  padding:13px 0;border:1px solid var(--line);border-radius:var(--r-sm);
+  background:var(--surface);color:var(--ink);
+  font:inherit;font-size:17px;font-weight:730;cursor:pointer;
+  font-variant-numeric:tabular-nums;transition:background .12s,border-color .12s;
+}
+.ct:hover{background:var(--line-2)}
+.ct:active{background:var(--line);transform:translateY(1px)}
+.ct.fn{background:var(--line-2);color:var(--ink-2);font-size:15px}
+.ct.op{background:var(--brand-soft);color:var(--brand-ink);border-color:var(--brand-line);font-size:19px}
+.ct.igual{background:var(--brand);color:#fff;border-color:var(--brand)}
+.ct.igual:hover{background:var(--brand-ink)}
+.ct.ancho{grid-column:span 2}
+
 .dos-cajas{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
 .caja-dinero{
   display:flex;flex-direction:column;padding:12px 13px 13px;

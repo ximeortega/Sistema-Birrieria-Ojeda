@@ -2337,6 +2337,7 @@ function renderCut() {
         ${icon('check', 17)} Guardar corte del día</button>
     </div>
 
+    <div class="col-lado">
     <div class="card">
       <div class="card-head"><div><div class="card-title">Resumen del día</div>
         <div class="card-sub"><span style="text-transform:capitalize">${dateText()}</span> · al momento ${hourMin()}</div></div>
@@ -2353,6 +2354,47 @@ function renderCut() {
       <div class="kv"><span>Gastos del día</span><b class="${c.spent ? 'text-red' : ''}">${money(c.spent)}</b></div>
       <div class="total-line"><span>Utilidad</span>
         <b class="${c.utility >= 0 ? 'text-green' : 'text-red'}">${money(c.utility)}</b></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div><div class="card-title">Calculadora</div>
+        <div class="card-sub">Para sacar cuentas sin salirte del corte.</div></div>
+        ${icon('plus', 20, 'muted')}</div>
+
+      <div class="calc-visor">
+        <span id="calcOperacion">${esc(calcRotulo())}</span>
+        <b id="calcPantalla">${esc(calcPantalla)}</b>
+      </div>
+
+      <div class="calc-teclas">
+        <button class="ct fn" onclick="calcTecla('C')">C</button>
+        <button class="ct fn" onclick="calcTecla('⌫')">⌫</button>
+        <button class="ct fn" onclick="calcTecla('%')">%</button>
+        <button class="ct op" onclick="calcTecla('÷')">÷</button>
+
+        <button class="ct" onclick="calcTecla('7')">7</button>
+        <button class="ct" onclick="calcTecla('8')">8</button>
+        <button class="ct" onclick="calcTecla('9')">9</button>
+        <button class="ct op" onclick="calcTecla('×')">×</button>
+
+        <button class="ct" onclick="calcTecla('4')">4</button>
+        <button class="ct" onclick="calcTecla('5')">5</button>
+        <button class="ct" onclick="calcTecla('6')">6</button>
+        <button class="ct op" onclick="calcTecla('−')">−</button>
+
+        <button class="ct" onclick="calcTecla('1')">1</button>
+        <button class="ct" onclick="calcTecla('2')">2</button>
+        <button class="ct" onclick="calcTecla('3')">3</button>
+        <button class="ct op" onclick="calcTecla('+')">+</button>
+
+        <button class="ct ancho" onclick="calcTecla('0')">0</button>
+        <button class="ct" onclick="calcTecla('.')">.</button>
+        <button class="ct igual" onclick="calcTecla('=')">=</button>
+      </div>
+
+      <button class="btn btn-line full" style="margin-top:10px" onclick="calcAEfectivo()">
+        ${icon('cash', 15)} Pasar a efectivo contado</button>
+    </div>
     </div>
     </div>
 
@@ -2387,6 +2429,90 @@ function cutDayLabel(x) {
 
 /** Cambia el fondo del día que se está cortando, sin tocar los días anteriores. */
 function updateDayFund(v) { setFund(v); renderCut(); }
+/* ---------- Calculadora del corte --------------------------------------- */
+/**
+ * Una calculadora sencilla al lado del corte, para no tener que buscar el
+ * celular a media cuenta. Lo que se lleva tecleado vive aquí, así que un
+ * refresco automático de la pantalla no lo borra.
+ */
+let calcPantalla = '0';
+let calcPrevio = null;    // el número que quedó esperando
+let calcOp = null;        // la operación pendiente
+let calcNuevo = true;     // la siguiente tecla empieza un número nuevo
+
+const calcTexto = (n) => {
+  if (n === null || !isFinite(n)) return '0';
+  return String(Math.round(n * 100) / 100);
+};
+const calcRotulo = () => (calcOp ? `${calcTexto(calcPrevio)} ${calcOp}` : '');
+
+function calcOperar(a, op, b) {
+  if (op === '+') return a + b;
+  if (op === '−') return a - b;
+  if (op === '×') return a * b;
+  if (op === '÷') return b === 0 ? null : a / b;
+  return b;
+}
+
+function calcTecla(t) {
+  const num = Number(calcPantalla);
+  const valido = isFinite(num) ? num : 0;
+
+  if (t === 'C') {
+    calcPantalla = '0'; calcPrevio = null; calcOp = null; calcNuevo = true;
+  } else if (t === '⌫') {
+    calcPantalla = calcNuevo || calcPantalla.length <= 1 ? '0' : calcPantalla.slice(0, -1);
+    if (!isFinite(Number(calcPantalla))) calcPantalla = '0';
+    calcNuevo = calcPantalla === '0';
+  } else if (t === '%') {
+    calcPantalla = calcTexto(valido / 100); calcNuevo = true;
+  } else if ('0123456789'.indexOf(t) >= 0) {
+    calcPantalla = (calcNuevo || calcPantalla === '0' || !isFinite(num)) ? t : calcPantalla + t;
+    calcNuevo = false;
+  } else if (t === '.') {
+    if (calcNuevo || !isFinite(num)) { calcPantalla = '0.'; calcNuevo = false; }
+    else if (calcPantalla.indexOf('.') < 0) calcPantalla += '.';
+  } else if (t === '=') {
+    if (calcOp !== null) {
+      const r = calcOperar(calcPrevio, calcOp, valido);
+      calcPantalla = r === null ? 'No se puede' : calcTexto(r);
+      calcPrevio = null; calcOp = null; calcNuevo = true;
+    }
+  } else {
+    // Encadenar cuentas: 2 + 3 + 4 va sacando el resultado sobre la marcha.
+    if (calcOp !== null && !calcNuevo) {
+      const r = calcOperar(calcPrevio, calcOp, valido);
+      if (r === null) {
+        calcPantalla = 'No se puede'; calcPrevio = null; calcOp = null; calcNuevo = true;
+        pintarCalc(); return;
+      }
+      calcPrevio = r; calcPantalla = calcTexto(r);
+    } else {
+      calcPrevio = valido;
+    }
+    calcOp = t; calcNuevo = true;
+  }
+  pintarCalc();
+}
+
+/** Solo se repinta el visor: no hace falta redibujar todo el corte. */
+function pintarCalc() {
+  const pant = $('#calcPantalla'), oper = $('#calcOperacion');
+  if (pant) pant.textContent = calcPantalla;
+  if (oper) oper.textContent = calcRotulo();
+}
+
+/** El resultado se pasa al campo del efectivo contado, sin volver a teclearlo. */
+function calcAEfectivo() {
+  const n = Number(calcPantalla);
+  if (!isFinite(n)) { toast('Primero saca la cuenta', 'err'); return; }
+  contadoDia = calcTexto(n);
+  const campo = $('#countedCash');
+  if (campo) campo.value = contadoDia;
+  previewDifference(cutNumbers().expected);
+  toast(`Se puso ${money(n)} como efectivo contado`, 'ok');
+}
+
 /** Lo que se lleva contado, para que un refresco automático no lo borre. */
 let contadoDia = '';
 
