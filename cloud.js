@@ -154,6 +154,7 @@ async function cloudInit() {
   if (!Cloud.session) { Cloud.online = false; return 'sin-sesion'; }
 
   Cloud.online = true;
+  anotarDispositivo(typeof session !== 'undefined' && session ? session.label : null);
   await cloudPullAll();
   await cloudEmpujarDiferencias();   // lo que se editó sin conexión sube ahora
   cloudListen();
@@ -363,7 +364,7 @@ function iniciarLatido() {
     if (!Cloud.online) return;
     if (typeof document !== 'undefined' && document.hidden) return;   // en reposo no gasta datos
     const hubo = await cloudRefrescar();
-    if (typeof session !== 'undefined' && session) anotarDispositivo(session.label);
+    anotarDispositivo(typeof session !== 'undefined' && session ? session.label : null);
     if (hubo && typeof onCloudChange === 'function') onCloudChange();
     if (typeof onCloudStatus === 'function') onCloudStatus();
   }, 10000);
@@ -586,10 +587,11 @@ async function anotarDispositivo(perfil) {
   try {
     const fila = {
       id: idDispositivo(),
-      perfil: perfil || null,
       plataforma: plataformaDispositivo(),
       last_seen: new Date().toISOString(),
     };
+    // Si nadie ha puesto su PIN todavía, no se pisa el perfil anterior.
+    if (perfil) fila.perfil = perfil;
     const { error } = await Cloud.client.from('devices').upsert(fila, { onConflict: 'id' });
     if (error) throw new Error(error.message);
     avisoDevices = false;
