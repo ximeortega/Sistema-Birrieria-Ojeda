@@ -4,13 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
   <meta name="theme-color" content="#a51420" />
-  <link rel="icon" href="logo.svg" type="image/svg+xml" />
+  <link rel="icon" href="logo.jpg" />
   <title>Birriería Ojeda · Sistema</title>
   <link rel="stylesheet" href="styles.css" />
   <script>
-    // Usa el logo real si lo colocas en la carpeta (logo.png / .jpg / .jpeg / .webp);
-    // si no hay ninguno, cae al vectorial logo.svg.
-    var LOGO_SOURCES = ['logo.png','logo.jpg','logo.jpeg','logo.webp','logo.svg'];
+    // El logo del negocio vive en la carpeta como logo.jpg. Los otros nombres
+    // quedan por si algún día se cambia el archivo por uno de otro formato.
+    var LOGO_SOURCES = ['logo.jpg','logo.png','logo.jpeg','logo.webp'];
     function logoFallback(img){
       var i = Number(img.dataset.i || 0) + 1;
       img.dataset.i = i;
@@ -24,7 +24,7 @@
 
   <!-- Se muestra mientras se traen los precios y las comandas del día -->
   <section id="cargando" class="cargando">
-    <img class="cargando-logo" src="logo.png" alt="" data-i="0" onerror="logoFallback(this)" />
+    <img class="cargando-logo" src="logo.jpg" alt="" data-i="0" onerror="logoFallback(this)" />
     <div class="cargando-barra"><i></i></div>
     <p id="cargandoTexto">Trayendo la información más reciente…</p>
   </section>
@@ -33,7 +33,7 @@
   <section id="loginView" class="login-view">
     <div class="login-shell">
       <div class="brand-panel">
-        <img class="brand-logo" src="logo.png" alt="Birriería Ojeda" data-i="0" onerror="logoFallback(this)" />
+        <img class="brand-logo" src="logo.jpg" alt="Birriería Ojeda" data-i="0" onerror="logoFallback(this)" />
         <p class="eyebrow">Sistema de operación</p>
         <h1 id="brandName">Birriería Ojeda</h1>
         <p class="brand-copy">Todo lo que tu negocio necesita para moverse rápido.</p>
@@ -64,7 +64,7 @@
   <section id="cloudView" class="login-view hidden">
     <div class="login-shell">
       <div class="brand-panel">
-        <img class="brand-logo" src="logo.png" alt="Birriería Ojeda" data-i="0" onerror="logoFallback(this)" />
+        <img class="brand-logo" src="logo.jpg" alt="Birriería Ojeda" data-i="0" onerror="logoFallback(this)" />
         <p class="eyebrow">Sistema de operación</p>
         <h1>Birriería Ojeda</h1>
         <p class="brand-copy">Todo lo que tu negocio necesita para moverse rápido.</p>
@@ -88,7 +88,7 @@
   <section id="appView" class="app-view hidden">
     <aside class="sidebar">
       <div class="sidebar-brand">
-        <img class="brand-logo small" src="logo.png" alt="Birriería Ojeda" data-i="0" onerror="logoFallback(this)" />
+        <img class="brand-logo small" src="logo.jpg" alt="Birriería Ojeda" data-i="0" onerror="logoFallback(this)" />
         <div><strong id="sideBrandName">Birriería Ojeda</strong><span>SISTEMA DE OPERACIÓN</span></div>
       </div>
 

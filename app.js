@@ -3102,7 +3102,7 @@ function renderAdminNegocio() {
       </div>
       <div class="logo-row">
         <div class="logo-preview">
-          <img src="${DB.get('logo', null) || 'logo.svg'}" alt="Logo actual">
+          <img src="${DB.get('logo', null) || 'logo.jpg'}" alt="Logo actual">
         </div>
         <div style="flex:1;min-width:0">
           <p style="font-size:13.5px;font-weight:700;margin-bottom:4px">
@@ -3516,15 +3516,15 @@ function saveLogo(dataUrl) {
 function removeLogo() {
   if (!confirm('¿Quitar el logo y volver al que trae el sistema?')) return;
   DB.remove('logo');
-  // La cadena de archivos la define index.html; si no está, se cae al vectorial.
-  const fuentes = (typeof LOGO_SOURCES !== 'undefined' && LOGO_SOURCES) || ['logo.png', 'logo.svg'];
+  // La cadena de archivos la define index.html; si no está, se usa el de la carpeta.
+  const fuentes = (typeof LOGO_SOURCES !== 'undefined' && LOGO_SOURCES) || ['logo.jpg', 'logo.png'];
   $$('.brand-logo').forEach((img) => {
     img.dataset.i = 0;
     if (typeof logoFallback === 'function') img.onerror = () => logoFallback(img);
     img.src = fuentes[0];
   });
   const fav = document.querySelector('link[rel="icon"]');
-  if (fav) fav.href = 'logo.svg';
+  if (fav) fav.href = 'logo.jpg';
   toast('Logo quitado');
   renderAdmin();
 }
