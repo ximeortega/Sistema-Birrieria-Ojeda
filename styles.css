@@ -624,6 +624,16 @@ small{font-size:12px}
 .er-dato span{display:block;font-size:11.5px;color:var(--muted);font-weight:650;margin-top:2px}
 .er-dato .ic{color:var(--muted)}
 .er-dato.domicilio{background:var(--amber-soft);border-color:var(--amber-line)}
+.er-dato.listo{background:var(--green-soft);border-color:var(--green-line)}
+.er-dato.listo .ic{color:var(--green)}
+.ec-cocina{
+  display:flex;align-items:center;gap:7px;margin-bottom:9px;
+  padding:7px 10px;border-radius:9px;
+  background:var(--amber-soft);color:var(--amber);
+  font-size:12px;font-weight:730;
+}
+.ec-cocina.ok{background:var(--green-soft);color:var(--green)}
+.empaque-card.cocinando{border-style:dashed}
 .er-dato.domicilio .ic,.er-dato.domicilio b{color:var(--amber)}
 
 .empaque-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px;align-items:start}
