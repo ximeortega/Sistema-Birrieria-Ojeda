@@ -1197,6 +1197,17 @@ small{font-size:12px}
 }
 .sync-chip:hover{background:var(--amber-soft)}
 .nav-cuenta{display:none}
+/* El interruptor de claro y oscuro, en la barra de arriba. Va aparte de
+   .cuenta-btn porque esa se dejó oculta: en el celular la cuenta se abre
+   desde el menú de abajo. */
+.tema-btn{
+  display:inline-flex;width:38px;height:38px;border-radius:11px;flex:none;
+  background:var(--surface);border:1px solid var(--line);color:var(--ink-2);
+  align-items:center;justify-content:center;transition:.15s;
+}
+.tema-btn:hover{border-color:var(--brand-line);background:var(--brand-soft);color:var(--brand)}
+.tema-btn .ic{display:block}
+
 .cuenta-btn{
   display:none;width:38px;height:38px;border-radius:11px;flex:none;
   background:var(--surface);border:1px solid var(--line);color:var(--ink-2);
