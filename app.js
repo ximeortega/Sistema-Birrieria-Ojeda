@@ -617,7 +617,7 @@ setInterval(() => {
   const d = new Date();
   const t = $('#clockTime'), dd = $('#clockDate');
   if (t) t.textContent = timeText(d);
-  if (dd) dd.textContent = dateText(d);
+  if (dd) dd.textContent = mayus1(dateText(d));
 }, 1000);
 
 // Refresco automático de cocina (cronómetros) y del corte (dinero que va
