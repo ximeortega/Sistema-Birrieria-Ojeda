@@ -2966,6 +2966,12 @@ async function cargarEquipos() {
       Falta crear la tabla de equipos: ejecuta <b>supabase-dispositivos.sql</b> en Supabase.</div>`;
     return;
   }
+  if (r.error) {
+    caja.innerHTML = `<div class="cloud-msg err">
+      No se pudo consultar la lista: ${esc(r.error)}<br>
+      <span style="opacity:.8">Se vuelve a intentar solo en unos segundos.</span></div>`;
+    return;
+  }
   if (!r.lista.length) {
     caja.innerHTML = `<p class="muted" style="font-size:13px">Todavía no hay equipos anotados.</p>`;
     return;

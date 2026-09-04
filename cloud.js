@@ -668,7 +668,10 @@ async function listarDispositivos() {
     if (error) throw new Error(error.message);
     return { falta: false, lista: data || [] };
   } catch (e) {
-    return { falta: true, error: e.message, lista: [] };
+    // Una cosa es que falte la tabla y otra que la nube haya fallado:
+    // decirlo mal manda a correr un SQL que no hacia falta.
+    const sinTabla = /relation|does not exist|schema cache|devices/i.test(e.message);
+    return { falta: sinTabla, error: e.message, lista: [] };
   }
 }
 
