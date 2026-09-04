@@ -2479,7 +2479,7 @@ function aplicarTema() {
   }
   // La barra del navegador en el celular hace juego con la pantalla.
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = oscuro ? '#141418' : '#a51420';
+  if (meta) meta.content = oscuro ? '#0e0e12' : '#a51420';
 }
 
 function ponerTema(t) {
