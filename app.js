@@ -60,6 +60,8 @@ const ICONS = {
   upload:   '<path d="M12 15V3.8"/><path d="m7.8 8 4.2-4.2L16.2 8"/><path d="M4.4 16.6v2a2.4 2.4 0 0 0 2.4 2.4h10.4a2.4 2.4 0 0 0 2.4-2.4v-2"/>',
   shield:   '<path d="M12 3.2 4.8 6v6c0 4.3 3 7.6 7.2 8.8 4.2-1.2 7.2-4.5 7.2-8.8V6Z"/><path d="m9.2 12.2 2 2 3.6-3.8"/>',
   phone:    '<rect x="6.6" y="2.4" width="10.8" height="19.2" rx="2.6"/><path d="M10.4 18.6h3.2"/>',
+  sol:      '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.4v2.2M12 19.4v2.2M4.2 12H2M22 12h-2.2M6.5 6.5 5 5M19 19l-1.5-1.5M17.5 6.5 19 5M5 19l1.5-1.5"/>',
+  luna:     '<path d="M20.4 13.4A8.6 8.6 0 0 1 10.6 3.6a8.6 8.6 0 1 0 9.8 9.8Z"/>',
   tablet:   '<rect x="4.6" y="2.4" width="14.8" height="19.2" rx="2.4"/><path d="M10.6 18.8h2.8"/>',
   laptop:   '<rect x="3.4" y="4.8" width="17.2" height="11" rx="2"/><path d="M1.8 19.4h20.4"/>',
 };
@@ -2447,6 +2449,59 @@ function updateDayFund(v) { setFund(v); renderCut(); }
 let ladoPanel = 'resumen';   // resumen o calc
 function setLadoPanel(cual) { ladoPanel = cual; renderCut(); }
 
+/* ---------- Claro y oscuro ---------------------------------------------- */
+/**
+ * Tres opciones: claro, oscuro y automático (lo que traiga el celular).
+ * Se guarda por equipo, no en la nube: cada quien ve el sistema como le
+ * acomode sin cambiárselo a los demás.
+ */
+const TEMAS = ['auto', 'claro', 'oscuro'];
+const temaGuardado = () => {
+  try { const t = localStorage.getItem('bo_tema'); return TEMAS.includes(t) ? t : 'auto'; }
+  catch { return 'auto'; }
+};
+const noche = () => !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+/** Lo que se está viendo ahora mismo: claro u oscuro. */
+const temaAlAire = () => {
+  const t = temaGuardado();
+  return t === 'auto' ? (noche() ? 'oscuro' : 'claro') : t;
+};
+
+function aplicarTema() {
+  const oscuro = temaAlAire() === 'oscuro';
+  if (oscuro) document.documentElement.dataset.theme = 'oscuro';
+  else delete document.documentElement.dataset.theme;
+
+  const btn = $('#temaBtn');
+  if (btn) {
+    btn.innerHTML = icon(oscuro ? 'sol' : 'luna', 19);
+    btn.title = oscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro';
+  }
+  // La barra del navegador en el celular hace juego con la pantalla.
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = oscuro ? '#141418' : '#a51420';
+}
+
+function ponerTema(t) {
+  try { localStorage.setItem('bo_tema', TEMAS.includes(t) ? t : 'auto'); } catch {}
+  aplicarTema();
+  if (session && currentPage === 'admin') renderAdmin();
+}
+
+/** El botón de la barra: de claro a oscuro y de vuelta, sin menús. */
+function alternarTema() {
+  ponerTema(temaAlAire() === 'oscuro' ? 'claro' : 'oscuro');
+  toast(temaAlAire() === 'oscuro' ? 'Modo oscuro' : 'Modo claro', 'ok');
+}
+
+// Si el equipo está en automático, sigue al celular cuando cambia solo.
+if (window.matchMedia) {
+  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+  const alCambiar = () => { if (temaGuardado() === 'auto') aplicarTema(); };
+  if (mq.addEventListener) mq.addEventListener('change', alCambiar);
+  else if (mq.addListener) mq.addListener(alCambiar);
+}
+
 /* ---------- Calculadora del corte --------------------------------------- */
 /**
  * Una calculadora sencilla al lado del corte, para no tener que buscar el
@@ -3092,6 +3147,22 @@ function renderAdminNegocio() {
         ${icon('shield', 20, 'muted')}
       </div>
       ${cloudCardBody()}
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="card-head">
+        <div><div class="card-title">Cómo se ve el sistema</div>
+          <div class="card-sub">Se guarda en este equipo; a los demás no les cambia nada.</div></div>
+        ${icon(temaAlAire() === 'oscuro' ? 'luna' : 'sol', 20, 'muted')}
+      </div>
+      <div class="tema-opciones">
+        ${[['auto', 'sol', 'Automático', 'Como lo tenga el celular'],
+           ['claro', 'sol', 'Claro', 'Siempre en blanco'],
+           ['oscuro', 'luna', 'Oscuro', 'Siempre en negro']].map(([id, ic, titulo, pie]) => `
+          <button class="tema-opcion ${temaGuardado() === id ? 'on' : ''}" onclick="ponerTema('${id}')">
+            ${icon(ic, 18)}<b>${titulo}</b><span>${pie}</span>
+          </button>`).join('')}
+      </div>
     </div>
 
     <div class="card" style="margin-top:16px">
@@ -4093,6 +4164,7 @@ async function arrancar() {
     }
   }
 
+  aplicarTema();
   sembrarDefaults();
   migrarInicio();
   pasarTodoAEfectivo();

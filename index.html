@@ -5,6 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
   <meta name="theme-color" content="#a51420" />
   <link rel="icon" href="logo.jpg" />
+  <meta name="theme-color" content="#a51420" />
+  <script>
+    // El tema se pone antes de dibujar nada: si se hiciera después, la
+    // pantalla daría un destello blanco al abrir de noche.
+    (function(){
+      try{
+        var guardado = localStorage.getItem('bo_tema') || 'auto';
+        var deNoche = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (guardado === 'oscuro' || (guardado === 'auto' && deNoche))
+          document.documentElement.dataset.theme = 'oscuro';
+      }catch(e){}
+    })();
+  </script>
   <title>Birriería Ojeda · Sistema</title>
   <link rel="stylesheet" href="styles.css" />
   <script>
@@ -115,6 +128,7 @@
           <h2 id="pageTitle">Inicio</h2>
         </div>
         <button id="syncChip" class="sync-chip hidden" onclick="tocarSyncChip()"></button>
+        <button id="temaBtn" class="cuenta-btn" onclick="alternarTema()" title="Cambiar entre claro y oscuro"></button>
         <button id="cuentaBtn" class="cuenta-btn" onclick="abrirCuenta()" title="Mi cuenta">
           <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
