@@ -2293,22 +2293,54 @@ function cutNumbers(k = todayKey()) {
   };
 }
 
+/**
+ * Día que está cerrando el panel. Casi siempre es hoy, pero si a alguien
+ * se le pasó guardar el corte, se puede escoger ese día y cerrarlo con los
+ * mismos números de entonces.
+ */
+let cortePara = null;
+
+function verCorteDe(dia) {
+  cortePara = dia || todayKey();
+  contadoDia = '';
+  renderCut();
+}
+
+const esOtroDia = () => cortePara && cortePara !== todayKey();
+
 function renderCut() {
-  const c = cutNumbers();
+  if (!cortePara) cortePara = todayKey();
+  const c = cutNumbers(cortePara);
+  const yaGuardado = DB.get('cuts', []).find((x) => x.date === cortePara);
   const cuts = [...DB.get('cuts', [])].sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
 
   $('#pageContent').innerHTML = `
     <div class="grid grid-b" style="margin-top:0">
 
     <div class="card corte">
-      <div class="card-head"><div><div class="card-title">Corte del día</div>
-        <div class="card-sub">Todo el dinero de hoy, entre por donde entre.</div></div>
-        ${icon('wallet', 20, 'muted')}</div>
+      <div class="card-head">
+        <div><div class="card-title">${esOtroDia() ? 'Corte de un día pasado' : 'Corte del día'}</div>
+          <div class="card-sub">${esOtroDia()
+            ? esc(mayus1(cutDayLabel({ date: cortePara })))
+            : 'Todo el dinero de hoy, entre por donde entre.'}</div></div>
+        <input type="date" class="fecha-chip" value="${cortePara}" max="${todayKey()}"
+               title="Cerrar otro día" onchange="verCorteDe(this.value)">
+      </div>
+
+      ${esOtroDia() ? `<div class="cloud-msg ${yaGuardado ? 'ok' : 'warn'}" style="margin-bottom:12px">
+        ${yaGuardado
+          ? `Este día ya tiene su corte, guardado a las ${esc(yaGuardado.time)} por
+             ${esc(yaGuardado.closedBy || 'alguien')}. Guardarlo otra vez lo reemplaza.`
+          : `A este día le falta el corte. Los números salen de las comandas y los
+             gastos de ese día, que siguen completos. Si nadie contó el efectivo,
+             deja el campo vacío y se guarda sin conteo.`}
+      </div>` : ''}
 
       <div class="field-grid two">
-        <div class="field"><label>Fondo inicial de hoy</label>
+        <div class="field"><label>Fondo inicial ${esOtroDia() ? 'de ese día' : 'de hoy'}</label>
           <input id="initialFund" type="number" inputmode="numeric" value="${c.fund}" onchange="updateDayFund(this.value)"></div>
-        <div class="field"><label>Efectivo contado en caja</label>
+        <div class="field"><label>Efectivo contado en caja
+          ${esOtroDia() ? '<i class="opt">si no se contó, déjalo vacío</i>' : ''}</label>
           <input id="countedCash" type="number" inputmode="numeric" placeholder="0" class="big-amount"
                  value="${esc(contadoDia)}" oninput="contadoCambio(this.value, ${c.expected})"></div>
       </div>
@@ -2353,7 +2385,9 @@ function renderCut() {
       </div>
 
       <button class="btn btn-primary btn-lg full" style="margin-top:14px" onclick="saveCut()">
-        ${icon('check', 17)} Guardar corte del día</button>
+        ${icon('check', 17)} ${esOtroDia()
+          ? (yaGuardado ? 'Reemplazar el corte de ese día' : 'Guardar el corte de ese día')
+          : 'Guardar corte del día'}</button>
     </div>
 
     <div class="card">
@@ -2361,7 +2395,7 @@ function renderCut() {
         <div><div class="card-title">${ladoPanel === 'calc' ? 'Calculadora' : 'Resumen del día'}</div>
           <div class="card-sub">${ladoPanel === 'calc'
             ? 'Para sacar cuentas sin salirte del corte.'
-            : `${esc(mayus1(dateText()))} · al momento ${hourMin()}`}</div></div>
+            : `${esc(mayus1(cutDayLabel({ date: cortePara })))}${esOtroDia() ? '' : ' · al momento ' + hourMin()}`}</div></div>
         <div class="panel-toggle">
           <button class="${ladoPanel === 'resumen' ? 'on' : ''}" title="Resumen del día"
                   onclick="setLadoPanel('resumen')">${icon('receipt', 16)}</button>
@@ -2427,12 +2461,14 @@ function renderCut() {
     ${cuts.length ? `<div class="table-wrap"><div class="scroll"><table class="data-table">
         <thead><tr><th>Día</th><th>Hora</th><th class="r">Ventas</th><th class="r">Gastos</th><th class="r">Utilidad</th><th class="r">Diferencia</th><th></th></tr></thead>
         <tbody>${cuts.map((x) => `<tr class="clickable" onclick="viewCut('${x.id}')">
-          <td><strong>${esc(mayus1(cutDayLabel(x)))}</strong></td>
+          <td><strong>${esc(mayus1(cutDayLabel(x)))}</strong>
+            ${x.tarde ? '<span class="tab-tag">cerrado después</span>' : ''}</td>
           <td class="muted">${esc(x.time)}</td>
           <td class="r money">${money(x.sales)}</td>
           <td class="r money text-red">${money(x.expenses)}</td>
           <td class="r money text-green">${money(x.utility)}</td>
-          <td class="r money ${x.difference === 0 ? 'text-green' : 'text-red'}">${x.difference > 0 ? '+' : ''}${money(x.difference)}</td>
+          <td class="r money ${x.difference == null ? 'muted' : x.difference === 0 ? 'text-green' : 'text-red'}">${
+            x.difference == null ? 'sin conteo' : (x.difference > 0 ? '+' : '') + money(x.difference)}</td>
           <td class="r"><button class="btn btn-line btn-sm" onclick="event.stopPropagation();viewCut('${x.id}')">Ver</button></td>
         </tr>`).join('')}</tbody></table></div></div>`
       : `<div class="empty"><div class="em-ic">${icon('chart', 22)}</div>
@@ -2450,7 +2486,7 @@ function cutDayLabel(x) {
 }
 
 /** Cambia el fondo del día que se está cortando, sin tocar los días anteriores. */
-function updateDayFund(v) { setFund(v); renderCut(); }
+function updateDayFund(v) { setFund(v, cortePara || todayKey()); renderCut(); }
 /** Cuál de los dos paneles se está viendo al lado del corte. */
 let ladoPanel = 'resumen';   // resumen o calc
 function setLadoPanel(cual) { ladoPanel = cual; renderCut(); }
@@ -2609,20 +2645,30 @@ function previewDifference(expected) {
 }
 
 function saveCut() {
-  const c = cutNumbers();
+  const dia = cortePara || todayKey();
+  const tarde = dia !== todayKey();
+  const c = cutNumbers(dia);
   const raw = $('#countedCash').value;
-  if (raw === '') { toast('Captura el efectivo contado', 'err'); return; }
-  const counted = Number(raw);
 
-  const cuts = DB.get('cuts', []);
+  // Cerrando hoy, el conteo es obligatorio: es el momento de hacerlo. En un
+  // día pasado ya no hay nada que contar, así que se puede guardar sin él.
+  if (raw === '' && !tarde) { toast('Captura el efectivo contado', 'err'); return; }
+  const seConto = raw !== '';
+  const counted = seConto ? Number(raw) : null;
+
+  const cuts = DB.get('cuts', []).filter((x) => x.date !== dia);
   cuts.push({
-    id:uid(), date:todayKey(), dateLabel:dateText(), time:timeText(), closedBy:session.label,
+    id:uid(), date:dia, dateLabel:cutDayLabel({ date:dia }), time:timeText(), closedBy:session.label,
+    // Un corte cerrado después, o sin contar el efectivo, se marca para que
+    // nadie lo lea como si se hubiera cuadrado el mismo día.
+    tarde, sinConteo: !seConto,
     // Números del cierre
     sales:c.sales, cashSales:c.cashSales, cardSales:c.cardSales, pending:c.pending,
     tips:c.tips, tipsCash:c.tipsCash, tipsCard:c.tipsCard,
     porMetodo:c.porMetodo, propinaMetodo:c.propinaMetodo, cuantas:c.cuantas,
     expenses:c.spent, utility:c.utility,
-    initial:c.fund, expected:c.expected, counted, difference:counted - c.expected,
+    initial:c.fund, expected:c.expected, counted,
+    difference: seConto ? counted - c.expected : null,
     sinEfectivo:c.sinEfectivo, totalEsperado:c.totalEsperado,
     ordersPaid:c.paid.length, ordersPending:c.open.length, pieces:c.pieces, ticket:c.ticket,
     // Fotografía del día, para poder consultarlo después tal como quedó
@@ -2634,7 +2680,7 @@ function saveCut() {
   });
   DB.set('cuts', cuts);
   contadoDia = '';
-  toast('Corte guardado', 'ok');
+  toast(tarde ? `Corte de ${cutDayLabel({ date:dia })} guardado` : 'Corte guardado', 'ok');
   renderCut();
 }
 
@@ -2647,8 +2693,12 @@ function viewCut(id) {
   const gastos = x.expenseList || dayExpenses(x.date);
   const totalVenta = x.sales + (x.pending || 0);
 
-  openModal(`${modalHead('Corte guardado · ' + x.time, cutDayLabel(x))}
+  openModal(`${modalHead('Corte guardado · ' + x.time, mayus1(cutDayLabel(x)))}
     <div class="modal-body">
+      ${x.tarde || x.sinConteo ? `<div class="cloud-msg warn">
+        ${x.tarde ? 'Este corte se cerró después, no el mismo día. ' : ''}
+        ${x.sinConteo ? 'Nadie contó el efectivo, así que no hay diferencia que comparar.' : ''}
+      </div>` : ''}
       <div class="cut-hero" style="grid-template-columns:repeat(2,1fr)">
         <div class="cut-box dark"><span>Ventas cobradas</span><strong>${money(x.sales)}</strong></div>
         <div class="cut-box green"><span>Utilidad del día</span><strong>${money(x.utility)}</strong></div>
@@ -2674,9 +2724,10 @@ function viewCut(id) {
         <div class="card-title" style="margin-bottom:8px">Efectivo en caja</div>
         <div class="kv"><span>Fondo inicial</span><b>${money(x.initial)}</b></div>
         <div class="kv"><span>Debía haber</span><b>${money(x.expected)}</b></div>
-        <div class="kv"><span>Se contó</span><b>${money(x.counted)}</b></div>
-        <div class="kv"><span>Diferencia</span>
-          <b class="${x.difference === 0 ? 'text-green' : 'text-red'}">${x.difference > 0 ? '+' : ''}${money(x.difference)}</b></div>
+        <div class="kv"><span>Se contó</span>
+          <b>${x.counted == null ? 'no se contó' : money(x.counted)}</b></div>
+        ${x.difference == null ? '' : `<div class="kv"><span>Diferencia</span>
+          <b class="${x.difference === 0 ? 'text-green' : 'text-red'}">${x.difference > 0 ? '+' : ''}${money(x.difference)}</b></div>`}
         ${(() => {
           // Los cortes viejos no lo traen guardado, pero se puede reconstruir.
           const sinEf = x.sinEfectivo != null ? x.sinEfectivo
@@ -3784,7 +3835,9 @@ function filasCortes(a, b) {
   DB.get('cuts', []).filter((c) => enRango(c.date, a, b))
     .sort((x, y2) => (x.date + x.time).localeCompare(y2.date + y2.time))
     .forEach((c) => rows.push([c.date, c.time, c.sales, c.cashSales != null ? c.cashSales : c.sales,
-      c.cardSales || 0, c.expenses, c.utility, c.initial, c.expected, c.counted, c.difference,
+      c.cardSales || 0, c.expenses, c.utility, c.initial, c.expected,
+      c.counted == null ? 'sin conteo' : c.counted,
+      c.difference == null ? 'sin conteo' : c.difference,
       c.closedBy || '']));
   return rows;
 }
