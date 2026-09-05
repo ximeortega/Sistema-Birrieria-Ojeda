@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
   <meta name="theme-color" content="#a51420" />
   <link rel="icon" href="logo.jpg" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="logo.jpg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Birriería Ojeda" />
   <meta name="theme-color" content="#a51420" />
   <script>
     // El tema se pone antes de dibujar nada: si se hiciera después, la
@@ -149,5 +153,14 @@
   <script src="config.js"></script>
   <script src="cloud.js"></script>
   <script src="app.js"></script>
+  <script>
+    // Guarda una copia del sistema en el aparato para poder abrirlo sin
+    // internet. Si el navegador no lo soporta, todo sigue igual.
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function () {});
+      });
+    }
+  </script>
 </body>
 </html>

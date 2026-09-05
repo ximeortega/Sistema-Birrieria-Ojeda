@@ -2891,10 +2891,16 @@ function aplicarRecarga() {
 
 async function vigilarVersion() {
   firmaApp = await firmaDeLaPagina();
-  if (!firmaApp) return;                       // sin firma no hay con qué comparar
-  setInterval(revisarVersion, 3 * 60000);
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) revisarVersion();
+  // Si se abrió sin señal todavía no hay con qué comparar: se sigue
+  // intentando, para que al volver el internet se enteren de los cambios.
+  setInterval(async () => {
+    if (!firmaApp) { firmaApp = await firmaDeLaPagina(); return; }
+    revisarVersion();
+  }, 3 * 60000);
+  document.addEventListener('visibilitychange', async () => {
+    if (document.hidden) return;
+    if (!firmaApp) { firmaApp = await firmaDeLaPagina(); return; }
+    revisarVersion();
   });
 }
 

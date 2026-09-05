@@ -1,0 +1,16 @@
+{
+  "name": "Birriería Ojeda · Sistema de operación",
+  "short_name": "Birriería Ojeda",
+  "description": "Comandas, cocina, empaque, caja y corte del día.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "es-MX",
+  "background_color": "#a51420",
+  "theme_color": "#a51420",
+  "icons": [
+    { "src": "logo.jpg", "sizes": "1125x1126", "type": "image/jpeg", "purpose": "any" },
+    { "src": "logo.jpg", "sizes": "1125x1126", "type": "image/jpeg", "purpose": "maskable" }
+  ]
+}
