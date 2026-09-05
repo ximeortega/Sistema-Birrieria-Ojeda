@@ -60,6 +60,7 @@ const ICONS = {
   upload:   '<path d="M12 15V3.8"/><path d="m7.8 8 4.2-4.2L16.2 8"/><path d="M4.4 16.6v2a2.4 2.4 0 0 0 2.4 2.4h10.4a2.4 2.4 0 0 0 2.4-2.4v-2"/>',
   shield:   '<path d="M12 3.2 4.8 6v6c0 4.3 3 7.6 7.2 8.8 4.2-1.2 7.2-4.5 7.2-8.8V6Z"/><path d="m9.2 12.2 2 2 3.6-3.8"/>',
   phone:    '<rect x="6.6" y="2.4" width="10.8" height="19.2" rx="2.6"/><path d="M10.4 18.6h3.2"/>',
+  calendario: '<rect x="3.2" y="5" width="17.6" height="16" rx="3.4"/><path d="M8.2 2.6v4.2M15.8 2.6v4.2M3.2 10.4h17.6"/><circle cx="8.4" cy="14.6" r="1.15" fill="currentColor" stroke="none"/><circle cx="12" cy="14.6" r="1.15" fill="currentColor" stroke="none"/><circle cx="15.6" cy="14.6" r="1.15" fill="currentColor" stroke="none"/>',
   sol:      '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.4v2.2M12 19.4v2.2M4.2 12H2M22 12h-2.2M6.5 6.5 5 5M19 19l-1.5-1.5M17.5 6.5 19 5M5 19l1.5-1.5"/>',
   luna:     '<path d="M20.4 13.4A8.6 8.6 0 0 1 10.6 3.6a8.6 8.6 0 1 0 9.8 9.8Z"/>',
   tablet:   '<rect x="4.6" y="2.4" width="14.8" height="19.2" rx="2.4"/><path d="M10.6 18.8h2.8"/>',
@@ -629,7 +630,7 @@ setInterval(() => {
 // Refresco automático de cocina (cronómetros) y del corte (dinero que va
 // entrando), sin interrumpir a nadie que esté capturando.
 setInterval(() => {
-  if (!session || $('#modalRoot').innerHTML || $('#sheetRoot').innerHTML) return;
+  if (!session || $('#modalRoot').innerHTML || $('#sheetRoot').innerHTML || calAbierto) return;
   if (currentPage === 'kitchen' || currentPage === 'cut') refresh();
 }, 20000);
 
@@ -2293,6 +2294,103 @@ function cutNumbers(k = todayKey()) {
   };
 }
 
+/* ---------- Calendario de la casa --------------------------------------- */
+/**
+ * El calendario que pone el navegador no se puede pintar, y desentona con
+ * el resto. Este es propio: además de escoger el día, marca cuáles
+ * tuvieron movimiento y cuáles ya quedaron cerrados.
+ */
+let calAbierto = false;
+let calMes = null;            // 'YYYY-MM' que se está viendo
+
+/** 'YYYY-MM-DD' a una fecha del día aquí, sin brincos por el huso horario. */
+function fechaDe(k) {
+  const [y, m, d] = String(k).split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+const claveDe = (d) => d.toLocaleDateString('sv-SE');
+/** "sáb 5 sep" — corto, para que quepa en la pastilla. */
+const diaEnPastilla = (k) => {
+  const d = fechaDe(k);
+  const dia = d.toLocaleDateString('es-MX', { weekday:'short' }).replace('.', '');
+  return `${mayus1(dia)} ${d.getDate()} ${d.toLocaleDateString('es-MX', { month:'short' }).replace('.', '')}`;
+};
+
+function alternarCalendario() {
+  calAbierto = !calAbierto;
+  if (calAbierto) calMes = (cortePara || todayKey()).slice(0, 7);
+  renderCut();
+}
+function cerrarCalendario() { calAbierto = false; renderCut(); }
+
+function calMover(n) {
+  const [y, m] = calMes.split('-').map(Number);
+  const d = new Date(y, m - 1 + n, 1);
+  calMes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  renderCut();
+}
+
+function calElegir(k) {
+  calAbierto = false;
+  verCorteDe(k);
+}
+
+/** Las seis semanas que se ven de un mes, empezando en domingo. */
+function calSemanas(mesKey) {
+  const [y, m] = mesKey.split('-').map(Number);
+  // El desfase se cuenta desde el día 1: con números negativos la fecha se
+  // va sola al mes anterior, sin tener que hacer cuentas de cuántos días trae.
+  const desfase = new Date(y, m - 1, 1).getDay();
+  const dias = [];
+  for (let i = 0; i < 42; i++) dias.push(new Date(y, m - 1, 1 - desfase + i));
+  return dias;
+}
+
+function calendarioHTML() {
+  const hoy = todayKey();
+  const mes = fechaDe(calMes + '-01');
+  const conCorte = new Set(DB.get('cuts', []).map((c) => c.date));
+  const conVenta = new Set(allOrders().map((o) => o.date));
+  const puedeAvanzar = calMes < hoy.slice(0, 7);
+
+  return `<div class="cal-fuera" onclick="cerrarCalendario()"></div>
+    <div class="cal-pop">
+      <div class="cal-cabeza">
+        <button class="cal-flecha" title="Mes anterior" onclick="calMover(-1)">${icon('back', 16)}</button>
+        <b>${esc(mayus1(mes.toLocaleDateString('es-MX', { month:'long', year:'numeric' })))}</b>
+        <button class="cal-flecha" title="Mes siguiente" onclick="calMover(1)"
+                ${puedeAvanzar ? '' : 'disabled'}>${icon('back', 16, 'volteado')}</button>
+      </div>
+
+      <div class="cal-nombres">
+        ${['do', 'lu', 'ma', 'mi', 'ju', 'vi', 'sá'].map((d) => `<span>${d}</span>`).join('')}
+      </div>
+
+      <div class="cal-rejilla">
+        ${calSemanas(calMes).map((d) => {
+          const k = claveDe(d);
+          const deOtroMes = k.slice(0, 7) !== calMes;
+          const futuro = k > hoy;
+          const clases = [
+            deOtroMes ? 'otro' : '',
+            futuro ? 'futuro' : '',
+            k === cortePara ? 'elegido' : '',
+            k === hoy ? 'hoy' : '',
+            conCorte.has(k) ? 'cerrado' : '',
+            conVenta.has(k) ? 'movido' : '',
+          ].filter(Boolean).join(' ');
+          return `<button class="cal-dia ${clases}" ${futuro ? 'disabled' : ''}
+                    onclick="calElegir('${k}')">${d.getDate()}<i></i></button>`;
+        }).join('')}
+      </div>
+
+      <div class="cal-pie">
+        <span class="cal-leyenda"><i class="pt movido"></i>con ventas <i class="pt cerrado"></i>ya cerrado</span>
+        <button class="btn btn-line btn-sm" onclick="calElegir('${hoy}')">Hoy</button>
+      </div>
+    </div>`;
+}
+
 /**
  * Día que está cerrando el panel. Casi siempre es hoy, pero si a alguien
  * se le pasó guardar el corte, se puede escoger ese día y cerrarlo con los
@@ -2301,6 +2399,7 @@ function cutNumbers(k = todayKey()) {
 let cortePara = null;
 
 function verCorteDe(dia) {
+  calAbierto = false;
   cortePara = dia || todayKey();
   contadoDia = '';
   renderCut();
@@ -2323,8 +2422,13 @@ function renderCut() {
           <div class="card-sub">${esOtroDia()
             ? esc(mayus1(cutDayLabel({ date: cortePara })))
             : 'Todo el dinero de hoy, entre por donde entre.'}</div></div>
-        <input type="date" class="fecha-chip" value="${cortePara}" max="${todayKey()}"
-               title="Cerrar otro día" onchange="verCorteDe(this.value)">
+        <div class="fecha-caja">
+          <button class="fecha-chip ${calAbierto ? 'on' : ''}" title="Escoger otro día"
+                  onclick="alternarCalendario()">
+            ${icon('calendario', 15)} ${esc(diaEnPastilla(cortePara))}
+          </button>
+          ${calAbierto ? calendarioHTML() : ''}
+        </div>
       </div>
 
       ${esOtroDia() ? `<div class="cloud-msg ${yaGuardado ? 'ok' : 'warn'}" style="margin-bottom:12px">

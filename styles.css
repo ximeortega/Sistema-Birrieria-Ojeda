@@ -858,35 +858,79 @@ small{font-size:12px}
 .card.corte .card-head{margin-bottom:12px}
 
 /* Escoger el día que se está cerrando */
+.fecha-caja{position:relative;flex:none}
 .fecha-chip{
-  flex:none;display:inline-flex;align-items:center;
-  border:1.5px solid var(--brand-line);border-radius:999px;padding:8px 13px;
+  display:inline-flex;align-items:center;gap:7px;
+  border:1.5px solid var(--brand-line);border-radius:999px;padding:8px 14px;
   font:inherit;font-size:12.5px;font-weight:750;color:var(--brand-ink);
-  background:var(--brand-soft);cursor:pointer;font-variant-numeric:tabular-nums;
+  background:var(--brand-soft);cursor:pointer;
   transition:border-color .15s,background .15s,color .15s,box-shadow .15s;
 }
-.fecha-chip:hover{
+.fecha-chip .ic{flex:none}
+.fecha-chip:hover,.fecha-chip.on{
   border-color:var(--brand);background:var(--brand);color:#fff;
   box-shadow:0 4px 12px rgba(165,20,32,.28);
 }
-.fecha-chip:focus{
-  outline:none;border-color:var(--brand);background:var(--brand);color:#fff;
-  box-shadow:0 0 0 3px var(--anillo);
+
+/* Se toca fuera y se cierra */
+.cal-fuera{position:fixed;inset:0;z-index:40}
+
+.cal-pop{
+  position:absolute;top:calc(100% + 9px);right:0;z-index:41;width:286px;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  box-shadow:var(--sh-md);padding:12px;
+  animation:calAsoma .14s ease-out;
 }
-/* El calendario del navegador se cambia por uno nuestro, pintado con el
-   rojo de la casa; al pasar por encima el chip se llena y el icono queda
-   en blanco. */
-.fecha-chip::-webkit-calendar-picker-indicator{
-  width:16px;height:16px;margin-left:9px;padding:0;cursor:pointer;opacity:1;
-  background-image:none;background-color:var(--brand);
-  -webkit-mask-image:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Crect%20x='3.2'%20y='5'%20width='17.6'%20height='16'%20rx='3.4'/%3E%3Cpath%20d='M8.2%202.6v4.2M15.8%202.6v4.2M3.2%2010.4h17.6'/%3E%3Ccircle%20cx='8.4'%20cy='14.6'%20r='1.15'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='12'%20cy='14.6'%20r='1.15'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='15.6'%20cy='14.6'%20r='1.15'%20fill='black'%20stroke='none'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Crect%20x='3.2'%20y='5'%20width='17.6'%20height='16'%20rx='3.4'/%3E%3Cpath%20d='M8.2%202.6v4.2M15.8%202.6v4.2M3.2%2010.4h17.6'/%3E%3Ccircle%20cx='8.4'%20cy='14.6'%20r='1.15'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='12'%20cy='14.6'%20r='1.15'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='15.6'%20cy='14.6'%20r='1.15'%20fill='black'%20stroke='none'/%3E%3C/svg%3E");
-  -webkit-mask-size:contain;mask-size:contain;
-  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
-  -webkit-mask-position:center;mask-position:center;
-  transition:background-color .15s;
+@keyframes calAsoma{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+
+.cal-cabeza{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.cal-cabeza b{font-size:14px;font-weight:760;letter-spacing:-.01em}
+.cal-flecha{
+  width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none;
+  color:var(--brand);background:var(--brand-soft);border:1px solid var(--brand-line);
+  transition:background .14s,color .14s;
 }
-.fecha-chip:hover::-webkit-calendar-picker-indicator,
-.fecha-chip:focus::-webkit-calendar-picker-indicator{background-color:#fff}
+.cal-flecha:hover:not([disabled]){background:var(--brand);color:#fff;border-color:var(--brand)}
+.cal-flecha[disabled]{opacity:.3;pointer-events:none}
+.cal-flecha .volteado{transform:rotate(180deg)}
+
+.cal-nombres{
+  display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px;
+  font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--muted);text-align:center;
+}
+.cal-rejilla{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cal-dia{
+  position:relative;aspect-ratio:1;border-radius:10px;border:1.5px solid transparent;
+  font:inherit;font-size:13px;font-weight:700;color:var(--ink-2);
+  display:grid;place-items:center;
+  transition:background .12s,color .12s,border-color .12s;
+}
+.cal-dia:hover:not([disabled]){background:var(--brand-soft);color:var(--brand-ink)}
+.cal-dia.otro{color:var(--muted);opacity:.45;font-weight:600}
+.cal-dia.futuro{opacity:.28;pointer-events:none}
+.cal-dia.hoy{border-color:var(--brand-line)}
+.cal-dia.elegido{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:800}
+.cal-dia.elegido:hover{background:var(--brand-600);color:#fff}
+
+/* Un puntito abajo: rojo si ese día hubo ventas, verde si ya quedó cerrado */
+.cal-dia i{
+  position:absolute;bottom:5px;left:50%;transform:translateX(-50%);
+  width:5px;height:5px;border-radius:50%;background:transparent;
+}
+.cal-dia.movido i{background:var(--brand)}
+.cal-dia.cerrado i{background:var(--green)}
+.cal-dia.elegido i{background:#fff}
+
+.cal-pie{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-top:10px;padding-top:10px;border-top:1px solid var(--line);
+}
+.cal-leyenda{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--muted);font-weight:650}
+.cal-leyenda .pt{width:6px;height:6px;border-radius:50%;flex:none}
+.cal-leyenda .pt:not(:first-child){margin-left:6px}
+.cal-leyenda .pt.movido{background:var(--brand)}
+.cal-leyenda .pt.cerrado{background:var(--green)}
 
 .gran-total{
   display:flex;align-items:center;gap:12px;flex-wrap:wrap;
