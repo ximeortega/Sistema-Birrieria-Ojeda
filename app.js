@@ -2384,8 +2384,9 @@ function renderCut() {
         <div class="gt-todo"><span>Debes tener en total</span><b>${money(c.totalEsperado)}</b></div>
       </div>
 
-      <button class="btn btn-primary btn-lg full" style="margin-top:14px" onclick="saveCut()">
-        ${icon('check', 17)} ${esOtroDia()
+      <button class="btn btn-cerrar" onclick="saveCut()">
+        <span class="bc-ic">${icon('check', 15)}</span>
+        ${esOtroDia()
           ? (yaGuardado ? 'Reemplazar el corte de ese día' : 'Guardar el corte de ese día')
           : 'Guardar corte del día'}</button>
     </div>
