@@ -42,7 +42,13 @@ const Cloud = {
   settingsSucio: false,    // hay configuración sin guardar
   sinColumnaEntrega: false, // la base todavía no tiene orders.delivery
   realtimeOk: false,       // ¿el aviso instantáneo quedó conectado?
-  trajoCambios: false,     // la última bajada trajo algo distinto
+  trajoCambios: false,
+  /**
+   * ¿Ya se leyó el menú de la nube en este arranque? Mientras sea false no
+   * se puede sembrar el menú de fábrica: en un equipo nuevo con la conexión
+   * lenta se tomaría por bueno y acabaría pisando los precios de todos.
+   */
+  menuLeido: false,     // la última bajada trajo algo distinto
 };
 
 const TABLAS = ['products', 'orders', 'expenses', 'cuts'];
@@ -186,6 +192,7 @@ async function cloudSignUp(email, password) {
 }
 
 async function cloudSignOut() {
+  Cloud.menuLeido = false;
   if (Cloud.client) await Cloud.client.auth.signOut();
   cloudStopListening();
   Cloud.session = null;
@@ -254,6 +261,8 @@ async function cloudPullAll() {
       marcarLeidoHasta(k, crudo[k]);
       if (JSON.stringify(unido) !== antes) Cloud.trajoCambios = true;
     });
+
+    Cloud.menuLeido = true;      // el menú de la nube ya es el que manda
 
     const ajustes = (se.data && se.data.data) || {};
     SETTING_KEYS.forEach((k) => {
@@ -403,6 +412,7 @@ async function cloudPullTable(tabla) {
     if (error) throw new Error(error.message);
     const mapa = { products: filaAProducto, orders: filaAOrden, expenses: filaAGasto, cuts: filaACorte };
     const filas = (data || []).map(mapa[tabla]);
+    if (tabla === 'products') Cloud.menuLeido = true;
     marcarLeidoHasta(tabla, data);
     const habiaPendientes = sinSubirDe(tabla).size > 0;
     const unido = fusionarConPendientes(tabla, filas);

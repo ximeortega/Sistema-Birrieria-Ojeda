@@ -4106,6 +4106,7 @@ function pasarTodoAEfectivo() {
 }
 
 function onCloudChange() {
+  sembrarDefaults();          // si la nube llegó tarde y venía vacía, ahora sí
   if (!session) return;
   if ($('#modalRoot').innerHTML || $('#sheetRoot').innerHTML) return;  // no interrumpir una captura
   refresh();
@@ -4164,7 +4165,9 @@ async function arrancar() {
     clearTimeout(lento);
 
     if (listo !== 'listo') {
-      aviso = 'Sin conexión: se abrió con lo último guardado. Revisa los precios antes de cobrar.';
+      aviso = DB.get('products', []).length
+        ? 'Sin conexión: se abrió con lo último guardado. Revisa los precios antes de cobrar.'
+        : 'Todavía no baja el menú del negocio. Espera a que aparezcan los productos antes de cobrar.';
     } else if (Cloud.error) {
       aviso = Cloud.error;
     }
@@ -4204,10 +4207,18 @@ function migrarInicio() {
 }
 
 /** Datos de fábrica, solo si no hay nada guardado ni en la nube ni aquí. */
+/** ¿Se puede confiar en que el menú que hay aquí es el bueno? */
+function menuConfiable() {
+  const conNube = typeof cloudConfig === 'function' && !!cloudConfig();
+  if (!conNube) return true;                       // equipo solo: manda lo local
+  return typeof Cloud !== 'undefined' && !!Cloud.menuLeido;
+}
+
 function sembrarDefaults() {
-  // Sin productos no hay con qué levantar comandas. Si la nube todavía no tenía
-  // menú, se siembra el de fábrica y de paso se sube.
-  if (!DB.get('products', []).length) DB.set('products', DEFAULT_PRODUCTS);
+  // El menú de fábrica solo entra cuando no hay nada que pisar: o el equipo
+  // trabaja solo, o ya se leyó la nube y de verdad venia vacia. En un equipo
+  // nuevo con la conexión lenta, sembrarlo mandaría precios viejos a todos.
+  if (menuConfiable() && !DB.get('products', []).length) DB.set('products', DEFAULT_PRODUCTS);
   if (!DB.get('orders', null)) DB.set('orders', []);
   if (!DB.get('expenses', null)) DB.set('expenses', []);
   if (!DB.get('cuts', null)) DB.set('cuts', []);
