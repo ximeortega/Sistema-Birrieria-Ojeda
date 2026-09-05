@@ -76,17 +76,23 @@ const DEFAULT_USERS = {
   caja:   { pin:'3333', label:'Caja',          icon:'cash'  },
 };
 
+/**
+ * Menú de arranque, solo para un negocio que empieza de cero. Los
+ * identificadores llevan "ej-" a propósito: así, aunque algún día se
+ * sembrara por error, jamás caería encima de un producto de verdad. Los
+ * precios reales viven en la nube y solo se cambian desde Menú.
+ */
 const DEFAULT_PRODUCTS = [
-  { id:'p1',  category:'ALIMENTOS', name:'Taco suave',            price:35,  active:true },
-  { id:'p2',  category:'ALIMENTOS', name:'Taco ahogado',          price:45,  active:true },
-  { id:'p3',  category:'ALIMENTOS', name:'Taco dorado',           price:40,  active:true },
-  { id:'p4',  category:'ALIMENTOS', name:'Quesabirria',           price:50,  active:true },
-  { id:'p5',  category:'ALIMENTOS', name:'Dorado con queso',      price:50,  active:true },
-  { id:'p6',  category:'ALIMENTOS', name:'Orden de birria',       price:180, active:true },
-  { id:'p7',  category:'ALIMENTOS', name:'Media orden de birria', price:120, active:true },
-  { id:'p8',  category:'ALIMENTOS', name:'Torta de birria',       price:120, active:true },
-  { id:'p9',  category:'BEBIDAS',   name:'Refresco',              price:35,  active:true },
-  { id:'p10', category:'BEBIDAS',   name:'Agua natural',          price:30,  active:true },
+  { id:'ej-1',  category:'ALIMENTOS', name:'Taco suave',            price:35,  active:true },
+  { id:'ej-2',  category:'ALIMENTOS', name:'Taco ahogado',          price:45,  active:true },
+  { id:'ej-3',  category:'ALIMENTOS', name:'Taco dorado',           price:40,  active:true },
+  { id:'ej-4',  category:'ALIMENTOS', name:'Quesabirria',           price:50,  active:true },
+  { id:'ej-5',  category:'ALIMENTOS', name:'Dorado con queso',      price:50,  active:true },
+  { id:'ej-6',  category:'ALIMENTOS', name:'Orden de birria',       price:180, active:true },
+  { id:'ej-7',  category:'ALIMENTOS', name:'Media orden de birria', price:120, active:true },
+  { id:'ej-8',  category:'ALIMENTOS', name:'Torta de birria',       price:120, active:true },
+  { id:'ej-9',  category:'BEBIDAS',   name:'Refresco',              price:35,  active:true },
+  { id:'ej-10', category:'BEBIDAS',   name:'Agua natural',          price:30,  active:true },
 ];
 
 /** Perfiles con el PIN guardado en Ajustes (o el de fábrica si no se ha cambiado). */
