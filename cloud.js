@@ -48,7 +48,14 @@ const Cloud = {
    * se puede sembrar el menú de fábrica: en un equipo nuevo con la conexión
    * lenta se tomaría por bueno y acabaría pisando los precios de todos.
    */
-  menuLeido: false,     // la última bajada trajo algo distinto
+  menuLeido: false,
+  /**
+   * Diferencia en segundos entre el reloj de este equipo y el del servidor.
+   * Importa mucho: el día de trabajo se decide con la fecha del aparato, y
+   * un celular con la fecha mal deja a cocina y a caja viendo pantallas
+   * vacías mientras todos los demás trabajan.
+   */
+  desfaseReloj: 0,     // la última bajada trajo algo distinto
 };
 
 const TABLAS = ['products', 'orders', 'expenses', 'cuts'];
@@ -160,6 +167,7 @@ async function cloudInit() {
   if (!Cloud.session) { Cloud.online = false; return 'sin-sesion'; }
 
   Cloud.online = true;
+  revisarReloj();
   anotarDispositivo(typeof session !== 'undefined' && session ? session.label : null);
   await cloudPullAll();
   await cloudEmpujarDiferencias();   // lo que se editó sin conexión sube ahora
@@ -558,6 +566,19 @@ async function cloudPushAll() {
     await cloudSyncArray(key, stateGet(key) || []);
   }
   cloudSyncSettings();
+}
+
+/** Compara el reloj de este equipo contra el del servidor. */
+async function revisarReloj() {
+  try {
+    const cfg = cloudConfig();
+    if (!cfg) return;
+    // La hora viene en la cabecera de cualquier respuesta; no cuesta nada.
+    const r = await fetch(cfg.url + '/rest/v1/', { method: 'HEAD', headers: { apikey: cfg.key } });
+    const cabecera = r.headers.get('date');
+    if (!cabecera) return;
+    Cloud.desfaseReloj = Math.round((new Date(cabecera).getTime() - Date.now()) / 1000);
+  } catch { /* sin conexión no hay contra qué comparar */ }
 }
 
 /* ---------- Dispositivos ------------------------------------------------ */

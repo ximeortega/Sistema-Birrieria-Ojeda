@@ -618,7 +618,42 @@ function renderPage() {
      empaque:renderEmpaque, expenses:renderExpenses, cut:renderCut,
      products:renderProducts, admin:renderAdmin }[currentPage])?.();
 }
-function refresh() { renderNav(); renderPage(); actualizarEstadoNube(); }
+function refresh() { renderNav(); renderPage(); actualizarEstadoNube(); avisarDelReloj(); }
+
+/**
+ * El día de trabajo se decide con la fecha de cada aparato. Si un celular
+ * la trae mal, su cocina y su caja se ven vacías aunque el negocio esté
+ * lleno, y lo que capture ahí se guarda en el día equivocado. Vale más
+ * decirlo de frente que dejar que lo descubran a media corrida.
+ */
+const DESFASE_QUE_IMPORTA = 5 * 60;   // segundos
+
+function avisarDelReloj() {
+  const caja = $('#avisoReloj');
+  if (!caja) return;
+
+  const desfase = (typeof Cloud !== 'undefined' && Cloud.desfaseReloj) || 0;
+  if (Math.abs(desfase) < DESFASE_QUE_IMPORTA) { caja.innerHTML = ''; return; }
+
+  const buena = new Date(Date.now() + desfase * 1000);
+  const otroDia = dayKeyOf(buena) !== todayKey();
+  const minutos = Math.round(Math.abs(desfase) / 60);
+  const cuanto = minutos < 90 ? `${minutos} minutos`
+    : minutos < 60 * 48 ? `${Math.round(minutos / 60)} horas`
+    : `${Math.round(minutos / 1440)} días`;
+
+  caja.innerHTML = `<div class="aviso-reloj ${otroDia ? 'grave' : ''}">
+    ${icon('alert', 18)}
+    <div>
+      <b>La fecha de este equipo está mal por ${esc(cuanto)}.</b>
+      <span>Dice ${esc(mayus1(cutDayLabel({ date: todayKey() })))}, ${esc(hourMin())} y en realidad
+        ${esc(mayus1(cutDayLabel({ date: dayKeyOf(buena) })))}, ${esc(hourMin(buena))}.
+        ${otroDia
+          ? 'Por eso cocina, caja y el corte se ven vacíos: están mirando otro día. Corrígela en los ajustes del aparato y vuelve a abrir.'
+          : 'Corrígela en los ajustes del aparato para que las horas de las comandas cuadren.'}</span>
+    </div>
+  </div>`;
+}
 
 setInterval(() => {
   const d = new Date();
@@ -4280,6 +4315,7 @@ function pasarTodoAEfectivo() {
  * todo con lo que de verdad hay: menú, perfiles y pestañas.
  */
 function alLlegarLaNube() {
+  avisarDelReloj();
   sembrarDefaults();
   migrarInicio();
   applyBranding();
@@ -4368,6 +4404,7 @@ async function arrancar() {
   applyBranding();
   actualizarEstadoNube();
 
+  avisarDelReloj();
   const recordado = leerSesion();
   if (!recordado || !abrirSesion(recordado, false)) mostrarLogin();
   ocultarCargando(aviso);

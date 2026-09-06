@@ -932,6 +932,16 @@ small{font-size:12px}
 .cal-leyenda .pt.movido{background:var(--brand)}
 .cal-leyenda .pt.cerrado{background:var(--green)}
 
+.aviso-reloj{
+  display:flex;align-items:flex-start;gap:11px;margin:0 28px 4px;
+  padding:13px 15px;border-radius:var(--r);
+  background:var(--amber-soft);border:1px solid var(--amber-line);color:var(--amber);
+}
+.aviso-reloj.grave{background:var(--brand-soft);border-color:var(--brand-line);color:var(--brand-ink)}
+.aviso-reloj .ic{flex:none;margin-top:1px}
+.aviso-reloj b{display:block;font-size:14px;font-weight:760}
+.aviso-reloj span{display:block;font-size:12.5px;margin-top:3px;line-height:1.45;opacity:.92}
+
 .gran-total{
   display:flex;align-items:center;gap:12px;flex-wrap:wrap;
   margin-top:12px;padding:13px 15px;border-radius:var(--r);
@@ -1472,6 +1482,7 @@ small{font-size:12px}
   .nav-btn span:not(.nav-badge){display:block}
   .nav-btn .nav-badge{position:absolute;transform:translate(15px,-11px);font-size:9.5px;padding:1px 5px;min-width:17px}
   .main{padding-bottom:calc(var(--nav-h) + 20px)}
+  .aviso-reloj{margin:0 16px 4px}
   .topbar{min-height:64px;padding:11px 16px}
   .topbar h2{font-size:19px}
   .topbar .eyebrow{font-size:10px}
