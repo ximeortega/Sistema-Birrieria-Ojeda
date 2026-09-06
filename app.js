@@ -4275,6 +4275,21 @@ function pasarTodoAEfectivo() {
   return cambiadas;
 }
 
+/**
+ * La nube llegó después de que la pantalla ya estaba dibujada. Se rehace
+ * todo con lo que de verdad hay: menú, perfiles y pestañas.
+ */
+function alLlegarLaNube() {
+  sembrarDefaults();
+  migrarInicio();
+  applyBranding();
+  actualizarEstadoNube();
+  if (!session) { mostrarLogin(); return; }
+  // Si el perfil se quedó con pestañas de fábrica, ahora sí toma las suyas.
+  if (!roleAllowed(currentPage)) { go(navOf(session.role)[0][0]); return; }
+  refresh();
+}
+
 function onCloudChange() {
   sembrarDefaults();          // si la nube llegó tarde y venía vacía, ahora sí
   if (!session) return;
@@ -4328,11 +4343,14 @@ async function arrancar() {
     }, 2200);
 
     // Con tope de tiempo: en plena corrida no se puede dejar a nadie esperando.
-    const listo = await Promise.race([
-      cloudInit().then(() => 'listo').catch((e) => { Cloud.error = e.message; return 'error'; }),
-      esperar(6000).then(() => 'tarde'),
-    ]);
+    const laNube = cloudInit().then(() => 'listo').catch((e) => { Cloud.error = e.message; return 'error'; });
+    const listo = await Promise.race([laNube, esperar(6000).then(() => 'tarde')]);
     clearTimeout(lento);
+
+    // Si tardó más de la cuenta, la pantalla ya se dibujó con lo de fábrica:
+    // hay que volver a dibujarla cuando por fin llegue, o se quedan sin menú
+    // y sin las pestañas que les toca a cada perfil.
+    if (listo === 'tarde') laNube.then(alLlegarLaNube);
 
     if (listo !== 'listo') {
       aviso = DB.get('products', []).length
