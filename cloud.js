@@ -55,7 +55,14 @@ const Cloud = {
    * un celular con la fecha mal deja a cocina y a caja viendo pantallas
    * vacías mientras todos los demás trabajan.
    */
-  desfaseReloj: 0,     // la última bajada trajo algo distinto
+  desfaseReloj: 0,
+  /**
+   * `online` dice que hay cuenta del negocio abierta; `hayRed` dice que de
+   * verdad se alcanza el servidor. Sin esta separación el sistema promete
+   * que está sincronizando cuando en realidad no hay señal.
+   */
+  hayRed: true,
+  reintentando: false,     // la última bajada trajo algo distinto
 };
 
 const TABLAS = ['products', 'orders', 'expenses', 'cuts'];
@@ -162,9 +169,16 @@ async function cloudInit() {
   Cloud.client = buildClient();
   if (!Cloud.client) return Cloud.error ? 'local' : 'local';
 
-  const { data } = await Cloud.client.auth.getSession();
+  engancharDespertares();      // aunque hoy no haya señal, para poder volver
+
+  let data = null;
+  try {
+    ({ data } = await Cloud.client.auth.getSession());
+    anotarExito();
+  } catch (e) { anotarFallo(e); }
+
   Cloud.session = data ? data.session : null;
-  if (!Cloud.session) { Cloud.online = false; return 'sin-sesion'; }
+  if (!Cloud.session) { Cloud.online = false; iniciarLatido(); return 'sin-sesion'; }
 
   Cloud.online = true;
   revisarReloj();
@@ -173,7 +187,6 @@ async function cloudInit() {
   await cloudEmpujarDiferencias();   // lo que se editó sin conexión sube ahora
   cloudListen();
   iniciarLatido();
-  engancharDespertares();
   return 'listo';
 }
 
@@ -279,7 +292,9 @@ async function cloudPullAll() {
       stateSet(k, ajustes[k]);
     });
     Cloud.error = null;
+    anotarExito();
   } catch (e) {
+    anotarFallo(e);
     Cloud.error = 'No se pudo leer de la nube: ' + e.message;
     Cloud.trajoCambios = true;   // ante la duda, se redibuja
   }
@@ -302,6 +317,7 @@ async function cloudRefrescar() {
       const { data, error } = await c.from(tabla).select('*')
         .gte('updated_at', desde).order('updated_at', { ascending: true });
       if (error) throw new Error(error.message);
+      anotarExito();
       if (!data || !data.length) continue;
 
       const sinSubir = sinSubirDe(tabla);
@@ -322,6 +338,7 @@ async function cloudRefrescar() {
       if (hubo) stateSet(tabla, [...actual.values()]);
       Cloud.desde[tabla] = data[data.length - 1].updated_at;
     } catch (e) {
+      anotarFallo(e);
       Cloud.error = 'No se pudo revisar ' + tabla + ': ' + e.message;
     }
   }
@@ -362,6 +379,7 @@ async function purgarBorrados() {
         hubo = true;
       }
     } catch (e) {
+      anotarFallo(e);
       Cloud.error = 'No se pudo revisar borrados en ' + tabla + ': ' + e.message;
     }
   }
@@ -378,8 +396,9 @@ function marcarLeidoHasta(tabla, filas) {
 function iniciarLatido() {
   detenerLatido();
   Cloud.latido = setInterval(async () => {
-    if (!Cloud.online) return;
     if (typeof document !== 'undefined' && document.hidden) return;   // en reposo no gasta datos
+    // Si se cayó la conexión, el latido es el que la levanta de vuelta.
+    if (!Cloud.online) { await reconectar(); return; }
     const hubo = await cloudRefrescar();
     anotarDispositivo(typeof session !== 'undefined' && session ? session.label : null);
     if (hubo && typeof onCloudChange === 'function') onCloudChange();
@@ -393,7 +412,7 @@ function engancharDespertares() {
   if (typeof document === 'undefined' || Cloud._enganchado) return;
   Cloud._enganchado = true;
   const alDia = async () => {
-    if (!Cloud.online) return;
+    if (!Cloud.online) { await reconectar(); return; }
     const hubo = await cloudRefrescar();
     if (hubo && typeof onCloudChange === 'function') onCloudChange();
     if (typeof onCloudStatus === 'function') onCloudStatus();
@@ -496,6 +515,7 @@ async function cloudSyncArray(key, ahora) {
       return cloudSyncArray(key, ahora);
     }
     // Se deja pendiente para volver a intentarlo; el espejo no se toca.
+    anotarFallo(e);
     Cloud.pendientes.add(key);
     Cloud.error = 'No se pudo guardar en la nube: ' + e.message;
     programarReintento();
@@ -566,6 +586,38 @@ async function cloudPushAll() {
     await cloudSyncArray(key, stateGet(key) || []);
   }
   cloudSyncSettings();
+}
+
+/** ¿El fallo fue por falta de señal, y no un problema de los datos? */
+function pareceSinRed(mensaje) {
+  return /fetch|network|failed to fetch|networkerror|load failed|timeout|offline/i.test(String(mensaje || ''));
+}
+function anotarFallo(e) {
+  if (pareceSinRed(e && e.message)) Cloud.hayRed = false;
+}
+function anotarExito() { Cloud.hayRed = true; }
+
+/**
+ * Vuelve a intentar la conexión. Se llama cuando el aparato avisa que
+ * regresó el internet, al volver a la pestaña y en cada latido: si no,
+ * habría que recargar a mano para que lo del día suba.
+ */
+async function reconectar() {
+  if (Cloud.online || Cloud.reintentando || !cloudConfig()) return false;
+  Cloud.reintentando = true;
+  try {
+    const r = await cloudInit();
+    if (r === 'listo') {
+      anotarExito();
+      if (typeof onCloudChange === 'function') onCloudChange();
+      return true;
+    }
+  } catch (e) { anotarFallo(e); }
+  finally {
+    Cloud.reintentando = false;
+    if (typeof onCloudStatus === 'function') onCloudStatus();
+  }
+  return false;
 }
 
 /** Compara el reloj de este equipo contra el del servidor. */

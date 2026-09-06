@@ -4378,9 +4378,14 @@ async function arrancar() {
       if (texto) texto.textContent = 'La conexión va lenta, tantito…';
     }, 2200);
 
-    // Con tope de tiempo: en plena corrida no se puede dejar a nadie esperando.
+    // Si el aparato ya dice que no hay señal, no se le hace esperar ni un
+    // segundo: se abre con lo guardado y la conexión se sigue intentando por
+    // su cuenta. En plena corrida cada segundo cuenta.
+    const sinSenal = typeof navigator !== 'undefined' && navigator.onLine === false;
     const laNube = cloudInit().then(() => 'listo').catch((e) => { Cloud.error = e.message; return 'error'; });
-    const listo = await Promise.race([laNube, esperar(6000).then(() => 'tarde')]);
+    const listo = sinSenal
+      ? 'tarde'
+      : await Promise.race([laNube, esperar(6000).then(() => 'tarde')]);
     clearTimeout(lento);
 
     // Si tardó más de la cuenta, la pantalla ya se dibujó con lo de fábrica:
@@ -4390,7 +4395,7 @@ async function arrancar() {
 
     if (listo !== 'listo') {
       aviso = DB.get('products', []).length
-        ? 'Sin conexión: se abrió con lo último guardado. Revisa los precios antes de cobrar.'
+        ? 'Sin internet: se abrió con lo último guardado. Puedes trabajar normal; todo se sube solo cuando regrese la señal.'
         : 'Todavía no baja el menú del negocio. Espera a que aparezcan los productos antes de cobrar.';
     } else if (Cloud.error) {
       aviso = Cloud.error;
@@ -4510,9 +4515,12 @@ function actualizarEstadoNube() {
   const hayNube = typeof Cloud !== 'undefined' && !!cloudConfig();
   const conectado = hayNube && Cloud.online;
 
+  const sinSenal = typeof Cloud !== 'undefined' && Cloud.hayRed === false;
+
   const lat = $('#userStatus');
   if (lat) lat.textContent = !hayNube ? 'Solo en este equipo'
-    : conectado ? 'Sincronizado' : (Cloud.error ? 'Sin conexión' : 'Falta entrar al negocio');
+    : sinSenal ? 'Sin internet'
+    : conectado ? 'Sincronizado' : 'Falta entrar al negocio';
 
   const chip = $('#syncChip');
   if (!chip) return;
@@ -4529,6 +4537,13 @@ function actualizarEstadoNube() {
     chip.className = 'sync-chip pendiente';
     chip.innerHTML = `${icon('clock', 15)}<span>Sin guardar</span>`;
     chip.title = 'Hay cambios que no se pudieron subir. Se reintenta solo.';
+  } else if (sinSenal) {
+    // Sin señal no hay nada que reclamarle a nadie: se sigue trabajando y
+    // lo del día sube solo. Conviene decirlo con calma.
+    chip.className = 'sync-chip sin-red';
+    chip.innerHTML = `${icon('alert', 15)}<span>Sin internet</span>`;
+    chip.title = 'No hay señal. Puedes seguir trabajando: todo se guarda aquí y '
+      + 'se sube solo en cuanto regrese.';
   } else {
     chip.className = 'sync-chip';
     chip.innerHTML = `${icon('alert', 15)}<span>Sin sincronizar</span>`;
