@@ -62,7 +62,14 @@ const Cloud = {
    * que está sincronizando cuando en realidad no hay señal.
    */
   hayRed: true,
-  reintentando: false,     // la última bajada trajo algo distinto
+  reintentando: false,
+  /**
+   * Con el aviso instantáneo funcionando, preguntar cada diez segundos es
+   * puro gasto: los cambios llegan solos. El repaso se espacia a un minuto
+   * y solo se acelera si el aviso instantáneo no está disponible. Importa
+   * cuando el negocio trabaja con los datos de un celular.
+   */
+  tics: 0,     // la última bajada trajo algo distinto
 };
 
 const TABLAS = ['products', 'orders', 'expenses', 'cuts'];
@@ -393,18 +400,32 @@ function marcarLeidoHasta(tabla, filas) {
 }
 
 /** Repaso automático mientras la app esté a la vista. */
+/** Cada cuántos tics de 10 s toca repasar la nube. */
+function cadaCuanto() {
+  // Sin aviso instantáneo hay que preguntar seguido o los cambios tardan.
+  return Cloud.realtimeOk ? 6 : 1;
+}
+
 function iniciarLatido() {
   detenerLatido();
+  Cloud.tics = 0;
   Cloud.latido = setInterval(async () => {
     if (typeof document !== 'undefined' && document.hidden) return;   // en reposo no gasta datos
     // Si se cayó la conexión, el latido es el que la levanta de vuelta.
     if (!Cloud.online) { await reconectar(); return; }
+
+    if (++Cloud.tics < cadaCuanto()) return;
+    Cloud.tics = 0;
+
     const hubo = await cloudRefrescar();
     anotarDispositivo(typeof session !== 'undefined' && session ? session.label : null);
     if (hubo && typeof onCloudChange === 'function') onCloudChange();
     if (typeof onCloudStatus === 'function') onCloudStatus();
   }, 10000);
 }
+
+/** Cuando el aviso instantáneo trae algo, el repaso ya no hace falta pronto. */
+function reiniciarEspera() { Cloud.tics = 0; }
 function detenerLatido() { if (Cloud.latido) { clearInterval(Cloud.latido); Cloud.latido = null; } }
 
 /** Al volver a la app o al recuperar internet, se pone al día de inmediato. */
@@ -789,7 +810,7 @@ function cloudListen() {
         });
       })
       .subscribe((estado) => {
-        if (estado === 'SUBSCRIBED') Cloud.realtimeOk = true;
+        if (estado === 'SUBSCRIBED') { Cloud.realtimeOk = true; reiniciarEspera(); }
         if (typeof onCloudStatus === 'function') onCloudStatus();
       });
     Cloud.channels.push(ch);
